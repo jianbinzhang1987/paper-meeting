@@ -1,0 +1,15 @@
+# Root .gitignore for paper-meeting
+.idea/
+.vscode/
+*.log
+*.swp
+.DS_Store
+
+# Subproject specific (redundant but safe)
+node_modules/
+target/
+build/
+.dart_tool/
+.flutter-plugins*
+.pub/
+.pub-cache/

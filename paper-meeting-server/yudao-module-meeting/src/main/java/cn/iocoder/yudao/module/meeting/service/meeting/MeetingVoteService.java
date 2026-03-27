@@ -1,0 +1,21 @@
+package cn.iocoder.yudao.module.meeting.service.meeting;
+
+import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingVoteCreateReqVO;
+import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingVoteResultExportVO;
+import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingVoteRespVO;
+import cn.iocoder.yudao.module.meeting.dal.dataobject.meeting.MeetingVoteDO;
+import cn.iocoder.yudao.module.meeting.dal.dataobject.meeting.MeetingVoteRecordDO;
+import java.util.List;
+import java.util.Map;
+
+public interface MeetingVoteService {
+    Long createVote(MeetingVoteCreateReqVO createReqVO);
+    void deleteVote(Long id);
+    MeetingVoteDO getVote(Long id);
+    List<MeetingVoteRespVO> getVoteListByMeetingId(Long meetingId);
+    List<MeetingVoteResultExportVO> getVoteResultExportList(Long meetingId);
+    void submitVote(MeetingVoteRecordDO recordDO);
+    void updateVoteStatus(Long id, Integer status);
+    Map<Long, Long> getVoteOptionCountMap(Long voteId);
+    boolean hasUserVoted(Long voteId, Long userId);
+}
