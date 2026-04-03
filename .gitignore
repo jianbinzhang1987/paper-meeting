@@ -13,3 +13,11 @@ build/
 .flutter-plugins*
 .pub/
 .pub-cache/
+
+# Agent and temporary files
+.claude/
+_bmad/
+_bmad-output/
+test_db.java
+test_net.txt
+paper-meeting-server/test_db.java
