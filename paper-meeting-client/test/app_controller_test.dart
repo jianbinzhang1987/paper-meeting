@@ -244,6 +244,15 @@ class _NoMeetingRepository implements MeetingRepository {
   }
 
   @override
+  Future<void> reportTerminalStatus({
+    required ConnectionConfig config,
+    required MeetingSession session,
+    MeetingUser? user,
+    required bool isDarkMode,
+    required ConnectionStatus connectionStatus,
+  }) async {}
+
+  @override
   Future<MeetingUser> signIn({
     required ConnectionConfig config,
     required MeetingSession session,

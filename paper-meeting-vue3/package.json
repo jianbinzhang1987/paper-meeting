@@ -22,7 +22,12 @@
     "lint:eslint": "eslint --fix --ext .js,.ts,.vue ./src",
     "lint:format": "prettier --write --loglevel warn \"src/**/*.{js,ts,json,tsx,css,less,scss,vue,html,md}\"",
     "lint:style": "stylelint --fix \"./src/**/*.{vue,less,postcss,css,scss}\" --cache --cache-location node_modules/.cache/stylelint/",
-    "lint:lint-staged": "lint-staged -c "
+    "lint:lint-staged": "lint-staged -c ",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:smoke": "playwright test --project=smoke"
   },
   "dependencies": {
     "@element-plus/icons-vue": "2.3.2",
@@ -87,6 +92,7 @@
     "@commitlint/config-conventional": "^19.0.0",
     "@iconify/json": "^2.2.187",
     "@intlify/unplugin-vue-i18n": "^2.0.0",
+    "@playwright/test": "^1.59.1",
     "@purge-icons/generated": "^0.9.0",
     "@types/jsoneditor": "^9.9.5",
     "@types/lodash-es": "^4.17.12",
@@ -102,6 +108,7 @@
     "@vitejs/plugin-legacy": "^5.3.1",
     "@vitejs/plugin-vue": "^5.0.4",
     "@vitejs/plugin-vue-jsx": "^3.1.0",
+    "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.17",
     "bpmn-js": "^17.9.2",
     "bpmn-js-properties-panel": "5.23.0",
@@ -111,6 +118,7 @@
     "eslint-define-config": "^2.1.0",
     "eslint-plugin-prettier": "^5.1.3",
     "eslint-plugin-vue": "^9.22.0",
+    "happy-dom": "^20.8.9",
     "lint-staged": "^15.2.2",
     "postcss": "^8.4.35",
     "postcss-html": "^1.6.0",
@@ -139,6 +147,7 @@
     "vite-plugin-purge-icons": "^0.10.0",
     "vite-plugin-svg-icons-ng": "^1.3.1",
     "vite-plugin-top-level-await": "^1.4.4",
+    "vitest": "^3.2.4",
     "vue-eslint-parser": "^9.3.2",
     "vue-tsc": "^1.8.27"
   },
