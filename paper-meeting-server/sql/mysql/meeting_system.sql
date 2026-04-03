@@ -144,6 +144,7 @@ CREATE TABLE `meeting_vote` (
   `type` tinyint NOT NULL DEFAULT 0 COMMENT '类型（0单选 1多选）',
   `is_secret` bit(1) NOT NULL DEFAULT b'1' COMMENT '是否匿名',
   `status` tinyint NOT NULL DEFAULT 0 COMMENT '状态（0未开始 1进行中 2已结束）',
+  `published_time` datetime DEFAULT NULL COMMENT '结果发布时间',
   `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updater` varchar(64) DEFAULT '' COMMENT '更新者',

@@ -2,6 +2,7 @@
   <div>
     <div class="mb-10px flex gap-12px items-center">
       <el-button type="primary" @click="handleAdd">添加人员</el-button>
+      <el-button type="warning" @click="handleImportGroup">按用户组导入</el-button>
       <el-button type="success" @click="handleExport">导出签到表</el-button>
     </div>
     <el-table :data="list">
@@ -49,18 +50,42 @@
         <el-button type="primary" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="groupDialogVisible" title="按用户组导入" append-to-body width="640px">
+      <el-form :model="groupFormData" label-width="90px">
+        <el-form-item label="用户组">
+          <el-select v-model="groupFormData.groupIds" multiple filterable class="!w-full" placeholder="请选择会议用户组">
+            <el-option v-for="item in groupList" :key="item.id" :label="item.name" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-radio-group v-model="groupFormData.role">
+            <el-radio :label="0">与会人员</el-radio>
+            <el-radio :label="1">主持人</el-radio>
+            <el-radio :label="2">会议秘书</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="groupDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitImportGroup">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script lang="ts" setup>
 import * as AttendeeApi from '@/api/meeting/attendee'
+import * as MeetingUserGroupApi from '@/api/meeting/userGroup'
 import * as UserApi from '@/api/system/user'
 import { dateFormatter } from '@/utils/formatTime'
 
 const props = defineProps<{ meetingId: number }>()
 const list = ref<AttendeeApi.MeetingAttendeeVO[]>([])
 const dialogVisible = ref(false)
+const groupDialogVisible = ref(false)
 const userList = ref<UserApi.UserVO[]>([])
+const groupList = ref<MeetingUserGroupApi.MeetingUserGroupVO[]>([])
 const userMap = computed(() =>
   userList.value.reduce<Record<number, UserApi.UserVO>>((acc, item) => {
     acc[item.id] = item
@@ -77,6 +102,11 @@ const formData = ref({
   userId: undefined as number | undefined,
   role: 0,
   status: 0
+})
+const groupFormData = ref({
+  meetingId: 0,
+  groupIds: [] as number[],
+  role: 0
 })
 
 const getList = async () => {
@@ -100,6 +130,16 @@ const handleAdd = async () => {
   dialogVisible.value = true
 }
 
+const handleImportGroup = async () => {
+  groupFormData.value = {
+    meetingId: props.meetingId,
+    groupIds: [],
+    role: 0
+  }
+  groupList.value = await MeetingUserGroupApi.getMeetingUserGroupSimpleList()
+  groupDialogVisible.value = true
+}
+
 const submitForm = async () => {
   await AttendeeApi.createAttendee(formData.value as AttendeeApi.MeetingAttendeeVO)
   dialogVisible.value = false
@@ -113,6 +153,12 @@ const handleDelete = async (id: number) => {
 
 const handleExport = async () => {
   await AttendeeApi.exportAttendeeExcel(props.meetingId)
+}
+
+const submitImportGroup = async () => {
+  await AttendeeApi.importAttendeeGroups(groupFormData.value)
+  groupDialogVisible.value = false
+  await getList()
 }
 
 const getUserName = (userId: number) => {

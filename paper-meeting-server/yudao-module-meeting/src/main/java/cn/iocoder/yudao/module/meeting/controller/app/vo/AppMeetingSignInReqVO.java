@@ -19,6 +19,12 @@ public class AppMeetingSignInReqVO {
     @Schema(description = "会议密码", example = "123456")
     private String password;
 
+    @Schema(description = "会议密码（新字段）", example = "123456")
+    private String meetingPassword;
+
+    @Schema(description = "个人密码", example = "abc123")
+    private String userPassword;
+
     @Schema(description = "设备名称", example = "华为平板-01")
     private String deviceName;
 }

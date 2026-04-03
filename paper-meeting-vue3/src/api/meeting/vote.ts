@@ -19,8 +19,42 @@ export interface MeetingVoteVO {
   createTime?: Date
 }
 
+export interface MeetingVoteDashboardOptionVO {
+  id: number
+  content: string
+  sort?: number
+  voteCount: number
+  voteRate: number
+}
+
+export interface MeetingVoteDashboardItemVO {
+  id: number
+  agendaId?: number
+  agendaTitle: string
+  title: string
+  type: number
+  secret?: boolean
+  status: number
+  attendeeCount: number
+  votedCount: number
+  pendingCount: number
+  turnoutRate: number
+  createTime?: Date
+  options: MeetingVoteDashboardOptionVO[]
+}
+
+export interface MeetingVoteDashboardVO {
+  meetingId: number
+  attendeeCount: number
+  votes: MeetingVoteDashboardItemVO[]
+}
+
 export const getMeetingVoteList = (meetingId: number) => {
   return request.get<MeetingVoteVO[]>({ url: '/meeting/vote/list', params: { meetingId } })
+}
+
+export const getMeetingVoteDashboard = (meetingId: number) => {
+  return request.get<MeetingVoteDashboardVO>({ url: '/meeting/vote/dashboard', params: { meetingId } })
 }
 
 export const createMeetingVote = (data: MeetingVoteVO) => {

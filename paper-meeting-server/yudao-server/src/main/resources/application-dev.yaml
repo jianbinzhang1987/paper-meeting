@@ -47,22 +47,22 @@ spring:
       primary: master
       datasource:
         master:
-          url: jdbc:mysql://172.18.20.190:3306/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
-          username: root
-          password: 123ABCdef*
+          url: jdbc:mysql://47.105.65.4:13306/meeting?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
+          username: dbuser
+          password: SecurePass2024
         slave: # 模拟从库，可根据自己需要修改 # 模拟从库，可根据自己需要修改
           lazy: true # 开启懒加载，保证启动速度
-          url: jdbc:mysql://172.18.20.190:3306/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
-          username: root
-          password: 123ABCdef*
+          url: jdbc:mysql://47.105.65.4:13306/meeting?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
+          username: dbuser
+          password: SecurePass2024
 
   # Redis 配置。Redisson 默认的配置足够使用，一般不需要进行调优
   data:
     redis:
-      host: 127.0.0.1 # 地址
-      port: 6379 # 端口
+      host: 47.105.65.4 # 地址
+      port: 16379 # 端口
       database: 1 # 数据库索引
-    password: abcd1234 # 密码，建议生产环境开启
+    password: SecureRedis2024 # 密码，建议生产环境开启
 
 --- #################### 定时任务相关配置 ####################
 

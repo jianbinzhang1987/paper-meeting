@@ -2,6 +2,8 @@ package cn.iocoder.yudao.module.meeting.service.realtime;
 
 import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsServicePayload;
 import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsSyncPayload;
+import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsTimerPayload;
+import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsVideoPayload;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,6 +20,8 @@ public class MeetingRealtimeStateService {
 
     private final ConcurrentMap<Long, Map<String, MeetingWsSyncPayload>> syncRequests = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Map<String, MeetingWsServicePayload>> serviceRequests = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, MeetingWsVideoPayload> videoStates = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, MeetingWsTimerPayload> timerStates = new ConcurrentHashMap<>();
 
     public MeetingWsSyncPayload createSyncRequest(MeetingWsSyncPayload payload) {
         payload.setRequestId(defaultRequestId(payload.getRequestId()));
@@ -55,6 +59,24 @@ public class MeetingRealtimeStateService {
 
     public List<MeetingWsServicePayload> getServiceRequests(Long meetingId) {
         return sortByRequestId(serviceRequests.getOrDefault(meetingId, Collections.emptyMap()));
+    }
+
+    public MeetingWsVideoPayload updateVideoState(MeetingWsVideoPayload payload) {
+        videoStates.put(payload.getMeetingId(), payload);
+        return payload;
+    }
+
+    public MeetingWsVideoPayload getVideoState(Long meetingId) {
+        return videoStates.get(meetingId);
+    }
+
+    public MeetingWsTimerPayload updateTimerState(MeetingWsTimerPayload payload) {
+        timerStates.put(payload.getMeetingId(), payload);
+        return payload;
+    }
+
+    public MeetingWsTimerPayload getTimerState(Long meetingId) {
+        return timerStates.get(meetingId);
     }
 
     private String defaultRequestId(String requestId) {

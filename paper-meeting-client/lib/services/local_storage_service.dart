@@ -59,14 +59,16 @@ class LocalStorageService {
       lastSignedInUserId: prefs.getString(_lastSignedInUserIdKey),
       currentUser: _decodeCurrentUser(prefs.getString(_currentUserKey)),
       cachedResources: _decodeStringMap(prefs.getString(_cachedResourcesKey)),
-      recentDocumentIds: _decodeStringList(prefs.getString(_recentDocumentIdsKey)),
+      recentDocumentIds:
+          _decodeStringList(prefs.getString(_recentDocumentIdsKey)),
       readNoticeIds: _decodeStringList(prefs.getString(_readNoticeIdsKey)),
       pinnedNoticeIds: _decodeStringList(prefs.getString(_pinnedNoticeIdsKey)),
       noticeAutoPlay: prefs.getBool(_noticeAutoPlayKey) ?? false,
     );
   }
 
-  Future<void> saveConfig(ConnectionConfig config, {required bool isConfigured}) async {
+  Future<void> saveConfig(ConnectionConfig config,
+      {required bool isConfigured}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _configKey,
@@ -94,9 +96,12 @@ class LocalStorageService {
         notes
             .map(
               (item) => <String, dynamic>{
+                'id': item.id,
+                'documentId': item.documentId,
                 'page': item.page,
                 'content': item.content,
                 'createdBy': item.createdBy,
+                'updatedAt': item.updatedAt?.toIso8601String(),
               },
             )
             .toList(),
@@ -112,8 +117,11 @@ class LocalStorageService {
         bookmarks
             .map(
               (item) => <String, dynamic>{
+                'id': item.id,
+                'documentId': item.documentId,
                 'page': item.page,
                 'label': item.label,
+                'updatedAt': item.updatedAt?.toIso8601String(),
               },
             )
             .toList(),
@@ -144,7 +152,8 @@ class LocalStorageService {
         'role': user.role.name,
         'seatName': user.seatName,
         'signStatus': user.signStatus,
-        'password': user.password,
+        'personalPassword': user.personalPassword,
+        'requirePersonalPassword': user.requirePersonalPassword,
         'accessToken': user.accessToken,
         'accessTokenExpiresAt': user.accessTokenExpiresAt?.toIso8601String(),
         'websocketPath': user.websocketPath,
@@ -196,9 +205,12 @@ class LocalStorageService {
         .map((item) => item as Map<String, dynamic>)
         .map(
           (item) => NoteEntry(
+            id: item['id'] as String?,
+            documentId: item['documentId'] as String?,
             page: (item['page'] as num?)?.toInt() ?? 1,
             content: '${item['content'] ?? ''}',
             createdBy: '${item['createdBy'] ?? '未知用户'}',
+            updatedAt: DateTime.tryParse('${item['updatedAt'] ?? ''}'),
           ),
         )
         .toList();
@@ -211,8 +223,11 @@ class LocalStorageService {
         .map((item) => item as Map<String, dynamic>)
         .map(
           (item) => BookmarkEntry(
+            id: item['id'] as String?,
+            documentId: item['documentId'] as String?,
             page: (item['page'] as num?)?.toInt() ?? 1,
             label: '${item['label'] ?? '未命名书签'}',
+            updatedAt: DateTime.tryParse('${item['updatedAt'] ?? ''}'),
           ),
         )
         .toList();
@@ -235,9 +250,12 @@ class LocalStorageService {
       role: role,
       seatName: '${json['seatName'] ?? ''}',
       signStatus: (json['signStatus'] as num?)?.toInt() ?? 0,
-      password: json['password'] as String?,
+      personalPassword:
+          (json['personalPassword'] ?? json['password']) as String?,
+      requirePersonalPassword: json['requirePersonalPassword'] == true,
       accessToken: json['accessToken'] as String?,
-      accessTokenExpiresAt: DateTime.tryParse('${json['accessTokenExpiresAt'] ?? ''}'),
+      accessTokenExpiresAt:
+          DateTime.tryParse('${json['accessTokenExpiresAt'] ?? ''}'),
       websocketPath: json['websocketPath'] as String?,
     );
   }

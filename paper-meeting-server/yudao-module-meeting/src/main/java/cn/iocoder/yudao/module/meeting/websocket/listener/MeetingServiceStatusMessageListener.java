@@ -5,7 +5,7 @@ import cn.iocoder.yudao.framework.security.core.LoginUser;
 import cn.iocoder.yudao.framework.websocket.core.util.WebSocketFrameworkUtils;
 import cn.iocoder.yudao.module.meeting.dal.dataobject.meeting.MeetingAttendeeDO;
 import cn.iocoder.yudao.module.meeting.service.meeting.MeetingAttendeeService;
-import cn.iocoder.yudao.module.meeting.service.realtime.MeetingRealtimeStateService;
+import cn.iocoder.yudao.module.meeting.service.meeting.MeetingServiceRequestService;
 import cn.iocoder.yudao.module.meeting.websocket.MeetingWebSocketMessageType;
 import cn.iocoder.yudao.module.meeting.websocket.MeetingWebSocketSender;
 import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsServicePayload;
@@ -23,7 +23,7 @@ public class MeetingServiceStatusMessageListener implements WebSocketMessageList
     @Resource
     private MeetingAttendeeService meetingAttendeeService;
     @Resource
-    private MeetingRealtimeStateService meetingRealtimeStateService;
+    private MeetingServiceRequestService meetingServiceRequestService;
     @Resource
     private MeetingWebSocketSender meetingWebSocketSender;
 
@@ -36,7 +36,7 @@ public class MeetingServiceStatusMessageListener implements WebSocketMessageList
         if (loginUser != null && loginUser.getInfo() != null) {
             message.setHandlerName(loginUser.getInfo().get(LoginUser.INFO_KEY_NICKNAME));
         }
-        MeetingWsServicePayload payload = meetingRealtimeStateService.updateServiceStatus(message);
+        MeetingWsServicePayload payload = meetingServiceRequestService.updateStatus(message);
         meetingWebSocketSender.sendServiceStatus(payload);
     }
 

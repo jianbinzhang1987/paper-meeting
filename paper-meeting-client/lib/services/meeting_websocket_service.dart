@@ -108,6 +108,16 @@ class MeetingWebSocketService {
         return SyncMessageType.forceReturn;
       case 'meeting-force-logout':
         return SyncMessageType.forceLogout;
+      case 'meeting-video-opened':
+        return SyncMessageType.videoOpened;
+      case 'meeting-video-controlled':
+        return SyncMessageType.videoControlled;
+      case 'meeting-timer-started':
+        return SyncMessageType.timerStarted;
+      case 'meeting-timer-updated':
+        return SyncMessageType.timerUpdated;
+      case 'meeting-timer-stopped':
+        return SyncMessageType.timerStopped;
       default:
         return null;
     }

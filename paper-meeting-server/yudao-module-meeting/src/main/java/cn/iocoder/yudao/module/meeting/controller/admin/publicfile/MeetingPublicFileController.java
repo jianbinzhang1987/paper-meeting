@@ -3,6 +3,8 @@ package cn.iocoder.yudao.module.meeting.controller.admin.publicfile;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
+import cn.iocoder.yudao.module.meeting.controller.admin.publicfile.vo.MeetingPublicFileArchiveReqVO;
+import cn.iocoder.yudao.module.meeting.controller.admin.publicfile.vo.MeetingPublicFileCategoryTreeRespVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.publicfile.vo.MeetingPublicFileCreateReqVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.publicfile.vo.MeetingPublicFilePageReqVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.publicfile.vo.MeetingPublicFileRespVO;
@@ -16,6 +18,8 @@ import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -64,5 +68,19 @@ public class MeetingPublicFileController {
     public CommonResult<PageResult<MeetingPublicFileRespVO>> getPage(@Valid MeetingPublicFilePageReqVO pageReqVO) {
         PageResult<MeetingPublicFileDO> page = meetingPublicFileService.getPage(pageReqVO);
         return success(new PageResult<>(BeanUtils.toBean(page.getList(), MeetingPublicFileRespVO.class), page.getTotal()));
+    }
+
+    @GetMapping("/category-tree")
+    @Operation(summary = "获得公共资料分类树")
+    @PreAuthorize("@ss.hasPermission('meeting:public-file:query')")
+    public CommonResult<List<MeetingPublicFileCategoryTreeRespVO>> getCategoryTree() {
+        return success(meetingPublicFileService.getCategoryTree());
+    }
+
+    @PostMapping("/archive")
+    @Operation(summary = "执行公共资料归档")
+    @PreAuthorize("@ss.hasPermission('meeting:public-file:update')")
+    public CommonResult<Integer> archive(@RequestBody MeetingPublicFileArchiveReqVO reqVO) {
+        return success(meetingPublicFileService.archive(reqVO));
     }
 }

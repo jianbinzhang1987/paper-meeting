@@ -1,28 +1,5 @@
 @echo off
 chcp 65001 > nul
-setlocal enabledelayedexpansion
-
-set SCRIPT_DIR=%~dp0
-set BASE_DIR=%SCRIPT_DIR%..
-
-echo [INFO] Starting Frontend in current window...
-cd /d "%BASE_DIR%\paper-meeting-vue3"
-if errorlevel 1 (
-  echo [ERROR] Cannot enter frontend directory: %BASE_DIR%\paper-meeting-vue3
-  exit /b 1
-)
-
-where pnpm > nul 2>nul
-if %errorlevel%==0 (
-  call pnpm dev
-) else (
-  echo [WARN] pnpm not found, fallback to npm run dev
-  call npm run dev
-)
-
-exit /b %errorlevel%
-@echo off
-chcp 65001 > nul
 setlocal
 
 set "SCRIPT_DIR=%~dp0"

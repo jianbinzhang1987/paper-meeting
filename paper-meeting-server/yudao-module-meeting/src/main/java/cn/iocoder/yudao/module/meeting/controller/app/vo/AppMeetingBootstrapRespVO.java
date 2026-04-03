@@ -34,6 +34,9 @@ public class AppMeetingBootstrapRespVO {
     @Schema(description = "是否开启水印")
     private Boolean watermark;
 
+    @Schema(description = "是否启用会议密码")
+    private Boolean meetingPasswordRequired;
+
     @Schema(description = "会议开始时间")
     private LocalDateTime startTime;
 
@@ -61,6 +64,15 @@ public class AppMeetingBootstrapRespVO {
     @Schema(description = "服务请求列表")
     private List<ServiceRequest> serviceRequests;
 
+    @Schema(description = "启用安装包信息")
+    private ActiveAppVersion activeAppVersion;
+
+    @Schema(description = "启用样式信息")
+    private ActiveUiConfig activeUiConfig;
+
+    @Schema(description = "启用贴牌信息")
+    private ActiveBranding activeBranding;
+
     @Data
     public static class Attendee {
         private Long attendeeId;
@@ -70,6 +82,7 @@ public class AppMeetingBootstrapRespVO {
         private String roleName;
         private Integer signStatus;
         private String seatId;
+        private Boolean personalPasswordRequired;
     }
 
     @Data
@@ -112,6 +125,7 @@ public class AppMeetingBootstrapRespVO {
         private Integer type;
         private Boolean secret;
         private Integer status;
+        private LocalDateTime publishedTime;
         private LocalDateTime createTime;
         private Boolean currentUserVoted;
         private Integer totalVotedCount;
@@ -151,5 +165,42 @@ public class AppMeetingBootstrapRespVO {
         private String status;
         private Long handlerUserId;
         private String handlerName;
+        private LocalDateTime acceptedAt;
+        private LocalDateTime completedAt;
+        private LocalDateTime canceledAt;
+        private String resultRemark;
+    }
+
+    @Data
+    public static class ActiveAppVersion {
+        private Long id;
+        private Integer clientType;
+        private String name;
+        private String versionName;
+        private Integer versionCode;
+        private Boolean forceUpdate;
+        private String downloadUrl;
+        private String md5;
+    }
+
+    @Data
+    public static class ActiveUiConfig {
+        private Long id;
+        private String name;
+        private Integer fontSize;
+        private String primaryColor;
+        private String accentColor;
+        private String backgroundImageUrl;
+        private String logoUrl;
+        private String extraCss;
+    }
+
+    @Data
+    public static class ActiveBranding {
+        private Long id;
+        private String siteName;
+        private String siteLogoUrl;
+        private String sidebarTitle;
+        private String sidebarSubtitle;
     }
 }

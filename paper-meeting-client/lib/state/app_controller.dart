@@ -66,6 +66,7 @@ class AppController extends ChangeNotifier {
           serviceRequests: const <ServiceRequest>[],
           syncRequests: const <SyncRequest>[],
           watermarkEnabled: false,
+          meetingPasswordRequired: false,
         ),
         selectedTopicId = 'loading',
         selectedDocumentId = 'loading-doc',
@@ -75,6 +76,7 @@ class AppController extends ChangeNotifier {
           remainingSeconds: 300,
           running: false,
           countDown: true,
+          controlled: false,
         );
 
   final MeetingRepository _repository;
@@ -94,6 +96,8 @@ class AppController extends ChangeNotifier {
   String selectedDocumentId;
   int currentPage;
   int noticeIndex = 0;
+  int noticeTotal = 0;
+  int noticePageNo = 1;
   int currentHomeIndex = 0;
   ConnectionStatus connectionStatus = ConnectionStatus.online;
   DateTime? lastSyncTime;
@@ -104,6 +108,7 @@ class AppController extends ChangeNotifier {
   double preloadProgress = 0;
   bool refreshingDocuments = false;
   bool refreshingNotices = false;
+  bool loadingMoreNotices = false;
   bool refreshingVotes = false;
   bool submittingSignature = false;
   bool realtimeConnecting = false;
@@ -120,11 +125,14 @@ class AppController extends ChangeNotifier {
   String? lastSignedInUserId;
   MeetingUser? _restoredCurrentUser;
   bool noticeAutoPlay = false;
+  bool allowOfflineBrowsing = false;
+  VideoSyncState videoSyncState = const VideoSyncState();
   TimerState timerState;
   Timer? _timer;
   Timer? _preloadTimer;
   Timer? _networkTimer;
   Timer? _noticeTimer;
+  Timer? _terminalHeartbeatTimer;
 
   Future<void> restoreLocalState() async {
     try {
@@ -169,7 +177,9 @@ class AppController extends ChangeNotifier {
   }
 
   List<MeetingDocument> get currentTopicDocuments {
-    return session.documents.where((item) => item.topicId == selectedTopicId).toList();
+    return session.documents
+        .where((item) => item.topicId == selectedTopicId)
+        .toList();
   }
 
   MeetingDocument? get currentDocumentOrNull {
@@ -216,8 +226,23 @@ class AppController extends ChangeNotifier {
         createdAt: DateTime.now(),
       );
 
+  List<NoteEntry> get currentDocumentNotes {
+    final documentId = selectedDocumentId;
+    return notes
+        .where((item) => (item.documentId ?? documentId) == documentId)
+        .toList();
+  }
+
+  List<BookmarkEntry> get currentDocumentBookmarks {
+    final documentId = selectedDocumentId;
+    return bookmarks
+        .where((item) => (item.documentId ?? documentId) == documentId)
+        .toList();
+  }
+
   bool get isSecretaryMode {
-    return currentUser?.role == UserRole.secretary || currentUser?.role == UserRole.host;
+    return currentUser?.role == UserRole.secretary ||
+        currentUser?.role == UserRole.host;
   }
 
   String get currentSyncRoleLabel {
@@ -226,7 +251,9 @@ class AppController extends ChangeNotifier {
       return '未登录';
     }
     final activeRequest = session.syncRequests
-        .where((item) => item.status == SyncRequestStatus.approved || item.status == SyncRequestStatus.pending)
+        .where((item) =>
+            item.status == SyncRequestStatus.approved ||
+            item.status == SyncRequestStatus.pending)
         .cast<SyncRequest?>()
         .firstWhere((item) => item != null, orElse: () => null);
     if (activeRequest == null) {
@@ -259,6 +286,30 @@ class AppController extends ChangeNotifier {
     return isSecretaryMode ? <HomeModule>[...base, HomeModule.secretary] : base;
   }
 
+  bool get isBootstrapPlaceholder => session.meetingId == 'bootstrap';
+
+  bool get hasNoActiveMeeting => session.meetingId == 'no-meeting';
+
+  bool get shouldShowBootstrapFailure =>
+      bootstrapError != null && !bootstrapping && isBootstrapPlaceholder;
+
+  bool get hasOfflineContent {
+    return session.documents.isNotEmpty ||
+        session.notices.isNotEmpty ||
+        cachedResources.isNotEmpty ||
+        notes.isNotEmpty ||
+        bookmarks.isNotEmpty;
+  }
+
+  bool get shouldShowRealtimeDisconnectedScreen {
+    return currentUser != null &&
+        currentUser!.accessToken?.isNotEmpty == true &&
+        connectionStatus == ConnectionStatus.offline &&
+        !bootstrapping &&
+        !hasNoActiveMeeting &&
+        !allowOfflineBrowsing;
+  }
+
   Future<void> loadBootstrapData() async {
     bootstrapping = true;
     bootstrapError = null;
@@ -267,17 +318,37 @@ class AppController extends ChangeNotifier {
       final seed = await _repository.loadBootstrapData(config);
       config = seed.config;
       session = seed.session;
-      selectedTopicId = seed.session.topics.isNotEmpty ? seed.session.topics.first.id : selectedTopicId;
-      selectedDocumentId = seed.session.documents.isNotEmpty ? seed.session.documents.first.id : selectedDocumentId;
+      selectedTopicId = seed.session.topics.isNotEmpty
+          ? seed.session.topics.first.id
+          : selectedTopicId;
+      selectedDocumentId = seed.session.documents.isNotEmpty
+          ? seed.session.documents.first.id
+          : selectedDocumentId;
       currentPage = 1;
+      noticeTotal = seed.session.notices.length;
+      noticePageNo = 1;
+      allowOfflineBrowsing = false;
       _normalizeSelection();
-      _restoreCurrentUserIfPossible();
+      if (hasNoActiveMeeting) {
+        currentUser = null;
+        _restoredCurrentUser = null;
+        sessionMessage = null;
+        unawaited(_disconnectRealtime());
+        unawaited(_localStorageService.saveCurrentUser(null));
+      } else {
+        _restoreCurrentUserIfPossible();
+        if (currentUser != null) {
+          unawaited(_syncDocumentMarks());
+        }
+      }
       lastSyncTime = DateTime.now();
       _startNetworkMonitor();
       unawaited(recheckNetworkStatus());
       if (currentUser?.accessToken?.isNotEmpty == true) {
         unawaited(_connectRealtime(currentUser!));
       }
+      _startTerminalHeartbeat();
+      unawaited(_reportTerminalStatus());
     } catch (error) {
       bootstrapError = '$error';
     } finally {
@@ -301,26 +372,47 @@ class AppController extends ChangeNotifier {
       deviceName: deviceName,
     );
     isConfigured = true;
-    unawaited(_localStorageService.saveConfig(config, isConfigured: isConfigured));
+    unawaited(
+        _localStorageService.saveConfig(config, isConfigured: isConfigured));
     _startNetworkMonitor();
     unawaited(recheckNetworkStatus());
     unawaited(loadBootstrapData());
     notifyListeners();
   }
 
+  void returnToConfiguration() {
+    unawaited(_disconnectRealtime());
+    _terminalHeartbeatTimer?.cancel();
+    currentUser = null;
+    _restoredCurrentUser = null;
+    sessionMessage = null;
+    allowOfflineBrowsing = false;
+    isConfigured = false;
+    bootstrapping = false;
+    unawaited(_localStorageService.saveCurrentUser(null));
+    unawaited(
+        _localStorageService.saveConfig(config, isConfigured: isConfigured));
+    notifyListeners();
+  }
+
   Future<String?> signIn({
     required MeetingUser user,
-    String password = '',
+    String meetingPassword = '',
+    String personalPassword = '',
   }) async {
-    if (user.requiresPassword && user.password != password) {
-      return '密码不正确';
+    if (session.meetingPasswordRequired && meetingPassword.isEmpty) {
+      return '请输入会议密码';
+    }
+    if (user.requiresPersonalPassword && personalPassword.isEmpty) {
+      return '请输入个人密码';
     }
     try {
       currentUser = await _repository.signIn(
         config: config,
         session: session,
         user: user,
-        password: password,
+        meetingPassword: meetingPassword,
+        personalPassword: personalPassword,
       );
     } catch (error) {
       return '$error';
@@ -334,15 +426,19 @@ class AppController extends ChangeNotifier {
       connectionStatus = ConnectionStatus.offline;
     }
     sessionMessage = null;
+    allowOfflineBrowsing = false;
     lastSignedInUserId = currentUser?.id;
     unawaited(_localStorageService.saveLastSignedInUserId(lastSignedInUserId));
     unawaited(_localStorageService.saveCurrentUser(currentUser));
+    await _syncDocumentMarks();
+    unawaited(_reportTerminalStatus());
     notifyListeners();
     return null;
   }
 
   void signOut({bool preserveSessionMessage = false}) {
     unawaited(_disconnectRealtime());
+    _terminalHeartbeatTimer?.cancel();
     currentUser = null;
     annotationEnabled = false;
     followSync = true;
@@ -351,6 +447,7 @@ class AppController extends ChangeNotifier {
     currentPage = 1;
     signaturePoints.clear();
     _restoredCurrentUser = null;
+    allowOfflineBrowsing = false;
     if (!preserveSessionMessage) {
       sessionMessage = null;
     }
@@ -363,6 +460,7 @@ class AppController extends ChangeNotifier {
   void toggleTheme() {
     isDarkMode = !isDarkMode;
     unawaited(_localStorageService.saveDarkMode(isDarkMode));
+    unawaited(_reportTerminalStatus());
     notifyListeners();
   }
 
@@ -377,6 +475,7 @@ class AppController extends ChangeNotifier {
     if (topicDocs.isNotEmpty) {
       selectedDocumentId = topicDocs.first.id;
       currentPage = 1;
+      unawaited(_syncDocumentMarks());
     } else {
       selectedDocumentId = '';
     }
@@ -390,6 +489,7 @@ class AppController extends ChangeNotifier {
     selectedDocumentId = documentId;
     currentPage = 1;
     _recordRecentDocument(documentId);
+    unawaited(_syncDocumentMarks());
     notifyListeners();
   }
 
@@ -430,16 +530,112 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addNote(String content) {
-    notes.add(NoteEntry(page: currentPage, content: content, createdBy: currentUser?.name ?? '未知用户'));
+  Future<void> addNote(String content) async {
+    final user = currentUser;
+    final documentId = selectedDocumentId;
+    final local = NoteEntry(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      documentId: documentId,
+      page: currentPage,
+      content: content,
+      createdBy: user?.name ?? '未知用户',
+      updatedAt: DateTime.now(),
+    );
+    notes.add(local);
     unawaited(_localStorageService.saveNotes(notes));
     notifyListeners();
+    if (user == null || documentId.isEmpty) {
+      return;
+    }
+    try {
+      final saved = await _repository.saveNote(
+        config: config,
+        meetingId: session.meetingId,
+        userId: user.id,
+        documentId: documentId,
+        page: currentPage,
+        content: content,
+        createdBy: user.name,
+      );
+      notes
+        ..removeWhere((item) => identical(item, local))
+        ..add(saved);
+      unawaited(_localStorageService.saveNotes(notes));
+      notifyListeners();
+    } catch (_) {
+      // Keep local note when sync is unavailable.
+    }
   }
 
-  void addBookmark(String label) {
-    bookmarks.add(BookmarkEntry(page: currentPage, label: label));
+  Future<void> addBookmark(String label) async {
+    final user = currentUser;
+    final documentId = selectedDocumentId;
+    final local = BookmarkEntry(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      documentId: documentId,
+      page: currentPage,
+      label: label,
+      updatedAt: DateTime.now(),
+    );
+    bookmarks.add(local);
     unawaited(_localStorageService.saveBookmarks(bookmarks));
     notifyListeners();
+    if (user == null || documentId.isEmpty) {
+      return;
+    }
+    try {
+      final saved = await _repository.saveBookmark(
+        config: config,
+        meetingId: session.meetingId,
+        userId: user.id,
+        documentId: documentId,
+        page: currentPage,
+        label: label,
+      );
+      bookmarks
+        ..removeWhere((item) => identical(item, local))
+        ..add(saved);
+      unawaited(_localStorageService.saveBookmarks(bookmarks));
+      notifyListeners();
+    } catch (_) {
+      // Keep local bookmark when sync is unavailable.
+    }
+  }
+
+  Future<void> removeNote(NoteEntry entry) async {
+    notes.remove(entry);
+    unawaited(_localStorageService.saveNotes(notes));
+    notifyListeners();
+    if (entry.id == null || currentUser == null) {
+      return;
+    }
+    try {
+      await _repository.deleteNote(
+        config: config,
+        userId: currentUser!.id,
+        markId: entry.id!,
+      );
+    } catch (_) {
+      // Keep local deletion even if remote cleanup fails.
+    }
+  }
+
+  Future<void> removeBookmark(BookmarkEntry entry) async {
+    bookmarks.remove(entry);
+    unawaited(_localStorageService.saveBookmarks(bookmarks));
+    notifyListeners();
+    if (entry.id == null || currentUser == null) {
+      return;
+    }
+    try {
+      await _repository.deleteBookmark(
+        config: config,
+        userId: currentUser!.id,
+        markId: entry.id!,
+      );
+    } catch (_) {
+      // Keep local deletion even if remote cleanup fails.
+    }
   }
 
   void requestSync() {
@@ -470,13 +666,19 @@ class AppController extends ChangeNotifier {
         documentId: selectedDocumentId,
         documentTitle: document.title,
         page: currentPage,
-        status: isSecretaryMode ? SyncRequestStatus.approved : SyncRequestStatus.pending,
+        status: isSecretaryMode
+            ? SyncRequestStatus.approved
+            : SyncRequestStatus.pending,
       );
-      session = _copySession(syncRequests: <SyncRequest>[request, ...session.syncRequests]);
+      session = _copySession(
+          syncRequests: <SyncRequest>[request, ...session.syncRequests]);
     }
     _logMessage(
       SyncMessageType.syncRequest,
-      <String, dynamic>{'documentTitle': document.title, 'requester': user.name},
+      <String, dynamic>{
+        'documentTitle': document.title,
+        'requester': user.name
+      },
     );
     syncActive = isSecretaryMode;
     notifyListeners();
@@ -513,20 +715,82 @@ class AppController extends ChangeNotifier {
 
   void playVideoSync() {
     syncActive = true;
-    _logMessage(SyncMessageType.syncApproved, <String, dynamic>{'videoSync': true});
+    _logMessage(
+        SyncMessageType.syncApproved, <String, dynamic>{'videoSync': true});
     notifyListeners();
+  }
+
+  void openVideoSync(MeetingDocument document) {
+    final user = currentUser;
+    videoSyncState = VideoSyncState(
+      documentId: document.id,
+      documentTitle: document.title,
+      positionMs: 0,
+      playing: true,
+      active: true,
+      sentAt: DateTime.now(),
+    );
+    if (realtimeEnabled && user != null) {
+      _sendRealtime(
+        type: 'meeting-video-control-send',
+        payload: <String, dynamic>{
+          'meetingId': int.tryParse(session.meetingId) ?? 0,
+          'documentId': document.id,
+          'documentTitle': document.title,
+          'action': 'open',
+          'positionMs': 0,
+          'playing': true,
+        },
+      );
+    }
+    notifyListeners();
+  }
+
+  void syncVideoPlayback({
+    required String documentId,
+    required String documentTitle,
+    required int positionMs,
+    required bool playing,
+  }) {
+    final user = currentUser;
+    videoSyncState = VideoSyncState(
+      documentId: documentId,
+      documentTitle: documentTitle,
+      positionMs: positionMs,
+      playing: playing,
+      active: true,
+      sentAt: DateTime.now(),
+    );
+    if (realtimeEnabled && user != null) {
+      _sendRealtime(
+        type: 'meeting-video-control-send',
+        payload: <String, dynamic>{
+          'meetingId': int.tryParse(session.meetingId) ?? 0,
+          'documentId': documentId,
+          'documentTitle': documentTitle,
+          'action': 'control',
+          'positionMs': positionMs,
+          'playing': playing,
+        },
+      );
+    }
   }
 
   void vote(String optionId) {
     final userId = currentUser?.id;
-    if (userId == null || session.voteItem.stage != VoteStage.active || session.voteItem.votedUserIds.contains(userId)) {
+    if (userId == null ||
+        session.voteItem.stage != VoteStage.active ||
+        session.voteItem.votedUserIds.contains(userId)) {
       return;
     }
     final options = session.voteItem.options
-        .map((item) => item.id == optionId ? item.copyWith(count: item.count + 1) : item)
+        .map((item) =>
+            item.id == optionId ? item.copyWith(count: item.count + 1) : item)
         .toList();
     final voted = Set<String>.from(session.voteItem.votedUserIds)..add(userId);
-    session = _copySession(voteItem: session.voteItem.copyWith(options: options, votedUserIds: voted));
+    session = _copySession(
+        voteItem:
+            session.voteItem.copyWith(options: options, votedUserIds: voted));
     unawaited(_repository.submitVote(
       config: config,
       userId: userId,
@@ -546,13 +810,17 @@ class AppController extends ChangeNotifier {
         },
       );
     }
-    session = _copySession(voteItem: session.voteItem.copyWith(stage: VoteStage.active));
-    _logMessage(SyncMessageType.voteStarted, <String, dynamic>{'voteId': session.voteItem.id});
+    session = _copySession(
+        voteItem: session.voteItem.copyWith(stage: VoteStage.active));
+    _logMessage(SyncMessageType.voteStarted,
+        <String, dynamic>{'voteId': session.voteItem.id});
     notifyListeners();
   }
 
   void resetVote() {
-    final resetOptions = session.voteItem.options.map((item) => item.copyWith(count: 0)).toList();
+    final resetOptions = session.voteItem.options
+        .map((item) => item.copyWith(count: 0))
+        .toList();
     session = _copySession(
       voteItem: session.voteItem.copyWith(
         stage: VoteStage.idle,
@@ -573,7 +841,8 @@ class AppController extends ChangeNotifier {
         },
       );
     }
-    session = _copySession(voteItem: session.voteItem.copyWith(stage: VoteStage.finished));
+    session = _copySession(
+        voteItem: session.voteItem.copyWith(stage: VoteStage.finished));
     notifyListeners();
   }
 
@@ -587,8 +856,10 @@ class AppController extends ChangeNotifier {
         },
       );
     }
-    session = _copySession(voteItem: session.voteItem.copyWith(stage: VoteStage.published));
-    _logMessage(SyncMessageType.votePublished, <String, dynamic>{'voteId': session.voteItem.id});
+    session = _copySession(
+        voteItem: session.voteItem.copyWith(stage: VoteStage.published));
+    _logMessage(SyncMessageType.votePublished,
+        <String, dynamic>{'voteId': session.voteItem.id});
     notifyListeners();
   }
 
@@ -626,7 +897,8 @@ class AppController extends ChangeNotifier {
         ],
       );
     }
-    _logMessage(SyncMessageType.serviceRequested, <String, dynamic>{'category': category, 'requester': user.name});
+    _logMessage(SyncMessageType.serviceRequested,
+        <String, dynamic>{'category': category, 'requester': user.name});
     notifyListeners();
   }
 
@@ -645,7 +917,8 @@ class AppController extends ChangeNotifier {
           .toList(),
     );
     if (realtimeEnabled) {
-      final item = session.serviceRequests.firstWhere((entry) => entry.id == requestId);
+      final item =
+          session.serviceRequests.firstWhere((entry) => entry.id == requestId);
       _sendRealtime(
         type: 'meeting-service-status-send',
         payload: <String, dynamic>{
@@ -661,7 +934,8 @@ class AppController extends ChangeNotifier {
         },
       );
     }
-    _logMessage(SyncMessageType.serviceUpdated, <String, dynamic>{'requestId': requestId, 'status': status.label});
+    _logMessage(SyncMessageType.serviceUpdated,
+        <String, dynamic>{'requestId': requestId, 'status': status.label});
     notifyListeners();
   }
 
@@ -682,7 +956,8 @@ class AppController extends ChangeNotifier {
     syncActive = true;
     followSync = true;
     if (realtimeEnabled) {
-      final item = session.syncRequests.firstWhere((entry) => entry.id == requestId);
+      final item =
+          session.syncRequests.firstWhere((entry) => entry.id == requestId);
       _sendRealtime(
         type: 'meeting-sync-status-send',
         payload: <String, dynamic>{
@@ -699,7 +974,8 @@ class AppController extends ChangeNotifier {
         },
       );
     }
-    _logMessage(SyncMessageType.syncApproved, <String, dynamic>{'requestId': requestId});
+    _logMessage(SyncMessageType.syncApproved,
+        <String, dynamic>{'requestId': requestId});
     notifyListeners();
   }
 
@@ -718,7 +994,8 @@ class AppController extends ChangeNotifier {
           .toList(),
     );
     if (realtimeEnabled) {
-      final item = session.syncRequests.firstWhere((entry) => entry.id == requestId);
+      final item =
+          session.syncRequests.firstWhere((entry) => entry.id == requestId);
       _sendRealtime(
         type: 'meeting-sync-status-send',
         payload: <String, dynamic>{
@@ -735,7 +1012,8 @@ class AppController extends ChangeNotifier {
         },
       );
     }
-    _logMessage(SyncMessageType.syncRejected, <String, dynamic>{'requestId': requestId});
+    _logMessage(SyncMessageType.syncRejected,
+        <String, dynamic>{'requestId': requestId});
     notifyListeners();
   }
 
@@ -764,7 +1042,8 @@ class AppController extends ChangeNotifier {
       ],
     );
     noticeIndex = 0;
-    _logMessage(SyncMessageType.noticePublished, <String, dynamic>{'title': title});
+    _logMessage(
+        SyncMessageType.noticePublished, <String, dynamic>{'title': title});
     notifyListeners();
   }
 
@@ -849,13 +1128,16 @@ class AppController extends ChangeNotifier {
       return;
     }
     connectionStatus = ConnectionStatus.online;
+    allowOfflineBrowsing = false;
     lastSyncTime = DateTime.now();
     if (currentUser != null) {
       unawaited(refreshRealtimeState());
       unawaited(refreshNotices());
       unawaited(refreshVotes());
     }
-    if (currentUser?.accessToken?.isNotEmpty == true && !realtimeEnabled && !realtimeConnecting) {
+    if (currentUser?.accessToken?.isNotEmpty == true &&
+        !realtimeEnabled &&
+        !realtimeConnecting) {
       unawaited(_connectRealtime(currentUser!));
     }
     notifyListeners();
@@ -929,17 +1211,53 @@ class AppController extends ChangeNotifier {
     refreshingNotices = true;
     notifyListeners();
     try {
-      final notices = await _repository.fetchNotices(
+      final result = await _repository.fetchNotices(
         config: config,
         meetingId: session.meetingId,
+        userId: currentUser?.id,
+        pageNo: 1,
+        pageSize: 20,
       );
-      session = _copySession(notices: notices);
+      session = _copySession(notices: result.items);
+      noticeTotal = result.total;
+      noticePageNo = 1;
       _normalizeNoticeCollections();
       noticeIndex = 0;
       _normalizeNoticeIndex();
       lastSyncTime = DateTime.now();
     } finally {
       refreshingNotices = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadMoreNotices() async {
+    if (loadingMoreNotices || session.notices.length >= noticeTotal) {
+      return;
+    }
+    loadingMoreNotices = true;
+    notifyListeners();
+    try {
+      final result = await _repository.fetchNotices(
+        config: config,
+        meetingId: session.meetingId,
+        userId: currentUser?.id,
+        pageNo: noticePageNo + 1,
+        pageSize: 20,
+      );
+      final merged = <MeetingNotice>[
+        ...session.notices,
+        ...result.items.where(
+          (item) => !session.notices.any((existing) => existing.id == item.id),
+        ),
+      ];
+      session = _copySession(notices: merged);
+      noticeTotal = result.total;
+      noticePageNo += 1;
+      _normalizeNoticeCollections();
+      _normalizeNoticeIndex();
+    } finally {
+      loadingMoreNotices = false;
       notifyListeners();
     }
   }
@@ -955,6 +1273,18 @@ class AppController extends ChangeNotifier {
       );
       if (vote != null) {
         session = _copySession(voteItem: vote);
+      } else {
+        session = _copySession(
+          voteItem: VoteItem(
+            id: '0',
+            title: '暂无表决',
+            description: '当前会议暂无进行中的表决事项。',
+            anonymous: false,
+            stage: VoteStage.idle,
+            options: <VoteOption>[VoteOption(id: '0', label: '待发布')],
+            votedUserIds: <String>{},
+          ),
+        );
       }
       lastSyncTime = DateTime.now();
     } finally {
@@ -973,6 +1303,10 @@ class AppController extends ChangeNotifier {
         syncRequests: snapshot.syncRequests,
         serviceRequests: snapshot.serviceRequests,
       );
+      videoSyncState = snapshot.videoState;
+      if (snapshot.timerState != null) {
+        _applyRemoteTimerState(snapshot.timerState!);
+      }
       lastSyncTime = DateTime.now();
       notifyListeners();
     } catch (_) {
@@ -989,7 +1323,8 @@ class AppController extends ChangeNotifier {
   }
 
   void nextNotice() {
-    if (session.notices.isNotEmpty && noticeIndex < session.notices.length - 1) {
+    if (session.notices.isNotEmpty &&
+        noticeIndex < session.notices.length - 1) {
       noticeIndex += 1;
       markCurrentNoticeRead();
       notifyListeners();
@@ -1003,6 +1338,19 @@ class AppController extends ChangeNotifier {
     }
     readNoticeIds.add(notice.id);
     unawaited(_localStorageService.saveReadNoticeIds(readNoticeIds));
+    if (currentUser != null) {
+      unawaited(_repository.markNoticeRead(
+        config: config,
+        meetingId: session.meetingId,
+        userId: currentUser!.id,
+        noticeId: notice.id,
+      ));
+    }
+    session = _copySession(
+      notices: session.notices
+          .map((item) => item.id == notice.id ? item.copyWith(read: true) : item)
+          .toList(),
+    );
     notifyListeners();
   }
 
@@ -1028,6 +1376,11 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void continueOfflineBrowsing() {
+    allowOfflineBrowsing = true;
+    notifyListeners();
+  }
+
   void setTimer({
     required int minutes,
     required bool countDown,
@@ -1038,6 +1391,7 @@ class AppController extends ChangeNotifier {
       remainingSeconds: countDown ? seconds : 0,
       running: false,
       countDown: countDown,
+      controlled: false,
     );
     _timer?.cancel();
     notifyListeners();
@@ -1046,6 +1400,9 @@ class AppController extends ChangeNotifier {
   void startTimer() {
     _timer?.cancel();
     timerState = timerState.copyWith(running: true);
+    if (isSecretaryMode) {
+      _broadcastTimerState();
+    }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!timerState.running) return;
       if (timerState.countDown) {
@@ -1053,9 +1410,14 @@ class AppController extends ChangeNotifier {
           stopTimer();
           return;
         }
-        timerState = timerState.copyWith(remainingSeconds: timerState.remainingSeconds - 1);
+        timerState = timerState.copyWith(
+            remainingSeconds: timerState.remainingSeconds - 1);
       } else {
-        timerState = timerState.copyWith(remainingSeconds: timerState.remainingSeconds + 1);
+        timerState = timerState.copyWith(
+            remainingSeconds: timerState.remainingSeconds + 1);
+      }
+      if (isSecretaryMode && timerState.remainingSeconds % 5 == 0) {
+        _broadcastTimerState();
       }
       notifyListeners();
     });
@@ -1066,8 +1428,13 @@ class AppController extends ChangeNotifier {
     _timer?.cancel();
     timerState = timerState.copyWith(
       running: false,
-      remainingSeconds: reset ? (timerState.countDown ? timerState.totalSeconds : 0) : timerState.remainingSeconds,
+      remainingSeconds: reset
+          ? (timerState.countDown ? timerState.totalSeconds : 0)
+          : timerState.remainingSeconds,
     );
+    if (isSecretaryMode) {
+      _broadcastTimerState();
+    }
     notifyListeners();
   }
 
@@ -1138,23 +1505,32 @@ class AppController extends ChangeNotifier {
           id: '${envelope.payload['noticeId'] ?? DateTime.now().millisecondsSinceEpoch}',
           title: '${envelope.payload['title'] ?? '会议通知'}',
           content: '${envelope.payload['content'] ?? ''}',
-          createdAt: DateTime.tryParse('${envelope.payload['publishedTime'] ?? ''}') ?? DateTime.now(),
+          createdAt:
+              DateTime.tryParse('${envelope.payload['publishedTime'] ?? ''}') ??
+                  DateTime.now(),
         );
-        session = _copySession(notices: <MeetingNotice>[notice, ...session.notices]);
+        session =
+            _copySession(notices: <MeetingNotice>[notice, ...session.notices]);
         _normalizeNoticeCollections();
         noticeIndex = 0;
         _normalizeNoticeIndex();
         break;
       case SyncMessageType.syncRequest:
-        session = _copySession(syncRequests: _mergeSyncRequest(_syncRequestFromEnvelope(envelope)));
+        session = _copySession(
+            syncRequests:
+                _mergeSyncRequest(_syncRequestFromEnvelope(envelope)));
         break;
       case SyncMessageType.syncApproved:
         syncActive = true;
         followSync = true;
-        session = _copySession(syncRequests: _mergeSyncRequest(_syncRequestFromEnvelope(envelope)));
+        session = _copySession(
+            syncRequests:
+                _mergeSyncRequest(_syncRequestFromEnvelope(envelope)));
         break;
       case SyncMessageType.syncRejected:
-        session = _copySession(syncRequests: _mergeSyncRequest(_syncRequestFromEnvelope(envelope)));
+        session = _copySession(
+            syncRequests:
+                _mergeSyncRequest(_syncRequestFromEnvelope(envelope)));
         break;
       case SyncMessageType.syncStopped:
         syncActive = false;
@@ -1162,10 +1538,14 @@ class AppController extends ChangeNotifier {
         session = _copySession(syncRequests: _markSyncStopped(envelope));
         break;
       case SyncMessageType.serviceRequested:
-        session = _copySession(serviceRequests: _mergeServiceRequest(_serviceRequestFromEnvelope(envelope)));
+        session = _copySession(
+            serviceRequests:
+                _mergeServiceRequest(_serviceRequestFromEnvelope(envelope)));
         break;
       case SyncMessageType.serviceUpdated:
-        session = _copySession(serviceRequests: _mergeServiceRequest(_serviceRequestFromEnvelope(envelope)));
+        session = _copySession(
+            serviceRequests:
+                _mergeServiceRequest(_serviceRequestFromEnvelope(envelope)));
         break;
       case SyncMessageType.voteStarted:
         session = _copySession(
@@ -1177,7 +1557,8 @@ class AppController extends ChangeNotifier {
         );
         break;
       case SyncMessageType.voteFinished:
-        session = _copySession(voteItem: session.voteItem.copyWith(stage: VoteStage.finished));
+        session = _copySession(
+            voteItem: session.voteItem.copyWith(stage: VoteStage.finished));
         break;
       case SyncMessageType.votePublished:
         session = _copySession(
@@ -1191,6 +1572,31 @@ class AppController extends ChangeNotifier {
       case SyncMessageType.forceReturn:
         syncActive = true;
         followSync = true;
+        break;
+      case SyncMessageType.videoOpened:
+      case SyncMessageType.videoControlled:
+        videoSyncState = VideoSyncState(
+          documentId: '${envelope.payload['documentId'] ?? ''}',
+          documentTitle: envelope.payload['documentTitle'] as String?,
+          positionMs: (envelope.payload['positionMs'] as num?)?.toInt() ?? 0,
+          playing: envelope.payload['playing'] == true,
+          active: '${envelope.payload['documentId'] ?? ''}'.isNotEmpty,
+          sentAt: DateTime.tryParse('${envelope.payload['sentTime'] ?? ''}'),
+        );
+        break;
+      case SyncMessageType.timerStarted:
+      case SyncMessageType.timerUpdated:
+      case SyncMessageType.timerStopped:
+        _applyRemoteTimerState(TimerState(
+          totalSeconds: (envelope.payload['totalSeconds'] as num?)?.toInt() ?? 0,
+          remainingSeconds:
+              (envelope.payload['remainingSeconds'] as num?)?.toInt() ?? 0,
+          running: envelope.payload['running'] == true,
+          countDown: envelope.payload['countDown'] != false,
+          speaker: envelope.payload['speaker'] as String?,
+          controlled: true,
+          sentAt: DateTime.tryParse('${envelope.payload['sentTime'] ?? ''}'),
+        ));
         break;
       case SyncMessageType.forceLogout:
         final targetUserId = '${envelope.payload['targetUserId'] ?? ''}';
@@ -1206,7 +1612,8 @@ class AppController extends ChangeNotifier {
   }
 
   void _normalizeSelection() {
-    if (session.topics.isNotEmpty && !session.topics.any((item) => item.id == selectedTopicId)) {
+    if (session.topics.isNotEmpty &&
+        !session.topics.any((item) => item.id == selectedTopicId)) {
       selectedTopicId = session.topics.first.id;
     }
     if (session.documents.isEmpty) {
@@ -1241,8 +1648,12 @@ class AppController extends ChangeNotifier {
     if (session.notices.isEmpty) {
       return;
     }
-    final pinned = session.notices.where((item) => pinnedNoticeIds.contains(item.id)).toList();
-    final normal = session.notices.where((item) => !pinnedNoticeIds.contains(item.id)).toList();
+    final pinned = session.notices
+        .where((item) => pinnedNoticeIds.contains(item.id))
+        .toList();
+    final normal = session.notices
+        .where((item) => !pinnedNoticeIds.contains(item.id))
+        .toList();
     session = _copySession(notices: <MeetingNotice>[...pinned, ...normal]);
   }
 
@@ -1309,6 +1720,38 @@ class AppController extends ChangeNotifier {
     unawaited(_localStorageService.saveRecentDocumentIds(recentDocumentIds));
   }
 
+  Future<void> _syncDocumentMarks() async {
+    final user = currentUser;
+    final document = currentDocumentOrNull;
+    if (user == null || document == null) {
+      return;
+    }
+    try {
+      final remoteNotes = await _repository.fetchNotes(
+        config: config,
+        meetingId: session.meetingId,
+        userId: user.id,
+        documentId: document.id,
+      );
+      final remoteBookmarks = await _repository.fetchBookmarks(
+        config: config,
+        meetingId: session.meetingId,
+        userId: user.id,
+        documentId: document.id,
+      );
+      notes.removeWhere((item) => (item.documentId ?? document.id) == document.id);
+      bookmarks
+          .removeWhere((item) => (item.documentId ?? document.id) == document.id);
+      notes.addAll(remoteNotes);
+      bookmarks.addAll(remoteBookmarks);
+      unawaited(_localStorageService.saveNotes(notes));
+      unawaited(_localStorageService.saveBookmarks(bookmarks));
+      notifyListeners();
+    } catch (_) {
+      // Keep local marks if the sync endpoint is unavailable.
+    }
+  }
+
   String? _resolveResourceUrl(String? rawUrl) {
     if (rawUrl == null || rawUrl.trim().isEmpty) {
       return null;
@@ -1329,9 +1772,11 @@ class AppController extends ChangeNotifier {
       return null;
     }
     final dir = await getApplicationCacheDirectory();
-    final file = File('${dir.path}${Platform.pathSeparator}meeting_message_log_${session.meetingId}.txt');
+    final file = File(
+        '${dir.path}${Platform.pathSeparator}meeting_message_log_${session.meetingId}.txt');
     final lines = messageLog
-        .map((item) => '[${item.timestamp.toIso8601String()}] ${item.type.code} ${item.payload}')
+        .map((item) =>
+            '[${item.timestamp.toIso8601String()}] ${item.type.code} ${item.payload}')
         .join('\n');
     await file.writeAsString(lines, flush: true);
     return file.path;
@@ -1342,12 +1787,14 @@ class AppController extends ChangeNotifier {
     if (restored == null) {
       return;
     }
-    if (restored.accessTokenExpiresAt != null && restored.accessTokenExpiresAt!.isBefore(DateTime.now())) {
+    if (restored.accessTokenExpiresAt != null &&
+        restored.accessTokenExpiresAt!.isBefore(DateTime.now())) {
       _restoredCurrentUser = null;
       unawaited(_localStorageService.saveCurrentUser(null));
       return;
     }
-    final matchedUser = session.users.where((item) => item.id == restored.id).toList();
+    final matchedUser =
+        session.users.where((item) => item.id == restored.id).toList();
     if (matchedUser.isEmpty) {
       return;
     }
@@ -1355,9 +1802,13 @@ class AppController extends ChangeNotifier {
       id: restored.id,
       name: restored.name.isNotEmpty ? restored.name : matchedUser.first.name,
       role: restored.role,
-      seatName: restored.seatName.isNotEmpty ? restored.seatName : matchedUser.first.seatName,
+      seatName: restored.seatName.isNotEmpty
+          ? restored.seatName
+          : matchedUser.first.seatName,
       signStatus: matchedUser.first.signStatus,
-      password: matchedUser.first.password ?? restored.password,
+      personalPassword:
+          matchedUser.first.personalPassword ?? restored.personalPassword,
+      requirePersonalPassword: matchedUser.first.requirePersonalPassword,
       accessToken: restored.accessToken,
       accessTokenExpiresAt: restored.accessTokenExpiresAt,
       websocketPath: restored.websocketPath,
@@ -1374,8 +1825,57 @@ class AppController extends ChangeNotifier {
     _websocketService.send(type: type, payload: payload);
   }
 
+  void _broadcastTimerState() {
+    final user = currentUser;
+    if (!realtimeEnabled || user == null) {
+      return;
+    }
+    _sendRealtime(
+      type: 'meeting-timer-control-send',
+      payload: <String, dynamic>{
+        'meetingId': int.tryParse(session.meetingId) ?? 0,
+        'totalSeconds': timerState.totalSeconds,
+        'remainingSeconds': timerState.remainingSeconds,
+        'countDown': timerState.countDown,
+        'running': timerState.running,
+        'speaker': timerState.speaker,
+      },
+    );
+  }
+
+  void _applyRemoteTimerState(TimerState remote) {
+    _timer?.cancel();
+    timerState = remote;
+    if (!remote.running) {
+      notifyListeners();
+      return;
+    }
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!timerState.running) {
+        return;
+      }
+      if (timerState.countDown) {
+        if (timerState.remainingSeconds <= 0) {
+          _timer?.cancel();
+          timerState = timerState.copyWith(running: false, remainingSeconds: 0);
+        } else {
+          timerState = timerState.copyWith(
+            remainingSeconds: timerState.remainingSeconds - 1,
+          );
+        }
+      } else {
+        timerState = timerState.copyWith(
+          remainingSeconds: timerState.remainingSeconds + 1,
+        );
+      }
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
   List<SyncRequest> _mergeSyncRequest(SyncRequest request) {
-    final existing = session.syncRequests.where((item) => item.id != request.id).toList();
+    final existing =
+        session.syncRequests.where((item) => item.id != request.id).toList();
     return <SyncRequest>[request, ...existing];
   }
 
@@ -1388,13 +1888,16 @@ class AppController extends ChangeNotifier {
     }
     return session.syncRequests
         .map(
-          (item) => item.id == requestId ? item.copyWith(status: SyncRequestStatus.rejected) : item,
+          (item) => item.id == requestId
+              ? item.copyWith(status: SyncRequestStatus.rejected)
+              : item,
         )
         .toList();
   }
 
   List<ServiceRequest> _mergeServiceRequest(ServiceRequest request) {
-    final existing = session.serviceRequests.where((item) => item.id != request.id).toList();
+    final existing =
+        session.serviceRequests.where((item) => item.id != request.id).toList();
     return <ServiceRequest>[request, ...existing];
   }
 
@@ -1407,7 +1910,8 @@ class AppController extends ChangeNotifier {
       documentId: '${envelope.payload['documentId'] ?? ''}',
       documentTitle: '${envelope.payload['documentTitle'] ?? ''}',
       page: envelope.payload['page'] as int?,
-      status: _syncRequestStatusFromCode('${envelope.payload['status'] ?? 'pending'}', envelope.type),
+      status: _syncRequestStatusFromCode(
+          '${envelope.payload['status'] ?? 'pending'}', envelope.type),
       approverUserId: '${envelope.payload['approverUserId'] ?? ''}',
       approverName: '${envelope.payload['approverName'] ?? ''}',
     );
@@ -1421,17 +1925,26 @@ class AppController extends ChangeNotifier {
       seatName: '${envelope.payload['requesterSeatName'] ?? ''}',
       category: '${envelope.payload['category'] ?? '会务服务'}',
       detail: '${envelope.payload['detail'] ?? ''}',
-      status: _serviceStatusFromCode('${envelope.payload['status'] ?? 'pending'}'),
+      status:
+          _serviceStatusFromCode('${envelope.payload['status'] ?? 'pending'}'),
       handlerUserId: '${envelope.payload['handlerUserId'] ?? ''}',
       handlerName: '${envelope.payload['handlerName'] ?? ''}',
+      acceptedAt: DateTime.tryParse('${envelope.payload['acceptedAt'] ?? ''}'),
+      completedAt:
+          DateTime.tryParse('${envelope.payload['completedAt'] ?? ''}'),
+      canceledAt: DateTime.tryParse('${envelope.payload['canceledAt'] ?? ''}'),
+      resultRemark: envelope.payload['resultRemark'] as String?,
     );
   }
 
-  SyncRequestStatus _syncRequestStatusFromCode(String code, SyncMessageType type) {
-    if (type == SyncMessageType.syncRejected || code.toLowerCase() == 'rejected') {
+  SyncRequestStatus _syncRequestStatusFromCode(
+      String code, SyncMessageType type) {
+    if (type == SyncMessageType.syncRejected ||
+        code.toLowerCase() == 'rejected') {
       return SyncRequestStatus.rejected;
     }
-    if (type == SyncMessageType.syncApproved || code.toLowerCase() == 'approved') {
+    if (type == SyncMessageType.syncApproved ||
+        code.toLowerCase() == 'approved') {
       return SyncRequestStatus.approved;
     }
     return SyncRequestStatus.pending;
@@ -1439,6 +1952,8 @@ class AppController extends ChangeNotifier {
 
   ServiceStatus _serviceStatusFromCode(String code) {
     switch (code.toLowerCase()) {
+      case 'accepted':
+        return ServiceStatus.accepted;
       case 'processing':
         return ServiceStatus.processing;
       case 'completed':
@@ -1452,6 +1967,8 @@ class AppController extends ChangeNotifier {
 
   String _serviceStatusCode(ServiceStatus status) {
     switch (status) {
+      case ServiceStatus.accepted:
+        return 'accepted';
       case ServiceStatus.processing:
         return 'processing';
       case ServiceStatus.completed:
@@ -1486,12 +2003,14 @@ class AppController extends ChangeNotifier {
           connectionStatus = ConnectionStatus.online;
           lastSyncTime = DateTime.now();
           unawaited(refreshRealtimeState());
+          unawaited(_reportTerminalStatus());
           notifyListeners();
         },
         onDisconnected: () {
           realtimeConnecting = false;
           realtimeEnabled = false;
           connectionStatus = ConnectionStatus.offline;
+          unawaited(_reportTerminalStatus());
           notifyListeners();
         },
         onError: (Object error) {
@@ -1499,6 +2018,7 @@ class AppController extends ChangeNotifier {
           realtimeEnabled = false;
           connectionStatus = ConnectionStatus.offline;
           bootstrapError = '实时连接失败：$error';
+          unawaited(_reportTerminalStatus());
           notifyListeners();
         },
         onMessage: applyEnvelope,
@@ -1508,6 +2028,7 @@ class AppController extends ChangeNotifier {
       realtimeEnabled = false;
       connectionStatus = ConnectionStatus.offline;
       bootstrapError = '实时连接失败：$error';
+      unawaited(_reportTerminalStatus());
       notifyListeners();
     }
   }
@@ -1518,6 +2039,7 @@ class AppController extends ChangeNotifier {
     realtimeEnabled = false;
     realtimeEndpoint = null;
     connectionStatus = ConnectionStatus.offline;
+    await _reportTerminalStatus();
   }
 
   void _startNetworkMonitor() {
@@ -1530,16 +2052,42 @@ class AppController extends ChangeNotifier {
     });
   }
 
+  void _startTerminalHeartbeat() {
+    _terminalHeartbeatTimer?.cancel();
+    if (!isConfigured) {
+      return;
+    }
+    _terminalHeartbeatTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      unawaited(_reportTerminalStatus());
+    });
+  }
+
+  Future<void> _reportTerminalStatus() async {
+    if (!isConfigured) {
+      return;
+    }
+    await _repository.reportTerminalStatus(
+      config: config,
+      session: session,
+      user: currentUser,
+      isDarkMode: isDarkMode,
+      connectionStatus: connectionStatus,
+    );
+  }
+
   Future<bool> _isServerReachable() async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
     try {
-      final uri = Uri.http('${config.serverIp}:${config.port}', '/meeting/app/bootstrap', <String, String>{
+      final uri = Uri.http('${config.serverIp}:${config.port}',
+          '/meeting/app/bootstrap', <String, String>{
         'roomName': config.roomName,
         'seatName': config.seatName,
         'deviceName': config.deviceName,
       });
-      final request = await client.getUrl(uri).timeout(const Duration(seconds: 3));
-      final response = await request.close().timeout(const Duration(seconds: 3));
+      final request =
+          await client.getUrl(uri).timeout(const Duration(seconds: 3));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
       await response.drain<void>();
       return response.statusCode >= 200 && response.statusCode < 500;
     } catch (_) {
@@ -1570,6 +2118,8 @@ class AppController extends ChangeNotifier {
       serviceRequests: serviceRequests ?? session.serviceRequests,
       syncRequests: syncRequests ?? session.syncRequests,
       watermarkEnabled: session.watermarkEnabled,
+      meetingPasswordRequired: session.meetingPasswordRequired,
+      terminalProfile: session.terminalProfile,
     );
   }
 
@@ -1579,6 +2129,7 @@ class AppController extends ChangeNotifier {
     _preloadTimer?.cancel();
     _networkTimer?.cancel();
     _noticeTimer?.cancel();
+    _terminalHeartbeatTimer?.cancel();
     unawaited(_disconnectRealtime());
     super.dispose();
   }

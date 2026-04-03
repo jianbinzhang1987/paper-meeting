@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.meeting.service.appversion;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.meeting.controller.admin.appversion.vo.MeetingAppVersionCreateReqVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.appversion.vo.MeetingAppVersionPageReqVO;
@@ -57,6 +58,16 @@ public class MeetingAppVersionServiceImpl implements MeetingAppVersionService {
     @Override
     public PageResult<MeetingAppVersionDO> getPage(MeetingAppVersionPageReqVO pageReqVO) {
         return meetingAppVersionMapper.selectPage(pageReqVO);
+    }
+
+    @Override
+    public MeetingAppVersionDO getActive(Integer clientType) {
+        return meetingAppVersionMapper.selectOne(new LambdaQueryWrapperX<MeetingAppVersionDO>()
+                .eq(MeetingAppVersionDO::getClientType, clientType)
+                .eq(MeetingAppVersionDO::getActive, true)
+                .orderByDesc(MeetingAppVersionDO::getVersionCode)
+                .orderByDesc(MeetingAppVersionDO::getId)
+                .last("limit 1"));
     }
 
     @Override

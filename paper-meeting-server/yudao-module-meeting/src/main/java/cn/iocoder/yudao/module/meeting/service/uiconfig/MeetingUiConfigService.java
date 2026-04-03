@@ -18,5 +18,7 @@ public interface MeetingUiConfigService {
 
     PageResult<MeetingUiConfigDO> getPage(MeetingUiConfigPageReqVO pageReqVO);
 
+    MeetingUiConfigDO getActive();
+
     void activate(Long id);
 }

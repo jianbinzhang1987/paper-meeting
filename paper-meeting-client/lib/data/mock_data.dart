@@ -3,10 +3,32 @@ import '../models/app_models.dart';
 class MockMeetingData {
   static SeedData build() {
     final users = <MeetingUser>[
-      MeetingUser(id: 'u1', name: '张明', role: UserRole.host, seatName: '主席位', signStatus: 1, password: '123456'),
-      MeetingUser(id: 'u2', name: '李娜', role: UserRole.secretary, seatName: '秘书席', signStatus: 1),
-      MeetingUser(id: 'u3', name: '王强', role: UserRole.attendee, seatName: 'A01', signStatus: 1),
-      MeetingUser(id: 'u4', name: '陈洁', role: UserRole.attendee, seatName: 'A02', signStatus: 0),
+      MeetingUser(
+          id: 'u1',
+          name: '张明',
+          role: UserRole.host,
+          seatName: '主席位',
+          signStatus: 1,
+          personalPassword: '123456',
+          requirePersonalPassword: true),
+      MeetingUser(
+          id: 'u2',
+          name: '李娜',
+          role: UserRole.secretary,
+          seatName: '秘书席',
+          signStatus: 1),
+      MeetingUser(
+          id: 'u3',
+          name: '王强',
+          role: UserRole.attendee,
+          seatName: 'A01',
+          signStatus: 1),
+      MeetingUser(
+          id: 'u4',
+          name: '陈洁',
+          role: UserRole.attendee,
+          seatName: 'A02',
+          signStatus: 0),
     ];
     final topics = <MeetingTopic>[
       MeetingTopic(id: 't1', title: '议题一：年度经营分析'),
@@ -106,6 +128,7 @@ class MockMeetingData {
           ),
         ],
         watermarkEnabled: true,
+        meetingPasswordRequired: true,
       ),
     );
   }

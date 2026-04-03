@@ -38,3 +38,7 @@ export const assignSeats = (data: { attendeeId: number; seatId?: string }[]) => 
 export const exportAttendeeExcel = (meetingId: number) => {
   return request.download({ url: '/meeting/attendee/export-excel', params: { meetingId } })
 }
+
+export const importAttendeeGroups = (data: { meetingId: number; groupIds: number[]; role: number }) => {
+  return request.post({ url: '/meeting/attendee/import-groups', data })
+}

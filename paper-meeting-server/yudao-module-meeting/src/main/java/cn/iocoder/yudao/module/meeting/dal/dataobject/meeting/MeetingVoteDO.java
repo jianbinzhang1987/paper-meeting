@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 /**
  * 会议表决 DO
  *
@@ -52,5 +54,10 @@ public class MeetingVoteDO extends TenantBaseDO {
      * 0未开始 1进行中 2已结束
      */
     private Integer status;
+
+    /**
+     * 结果发布时间
+     */
+    private LocalDateTime publishedTime;
 
 }

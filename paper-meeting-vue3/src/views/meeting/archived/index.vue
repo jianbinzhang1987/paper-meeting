@@ -32,10 +32,12 @@
       <el-table-column label="结束时间" align="center" prop="endTime" :formatter="dateFormatter" width="180" />
       <el-table-column label="归档人" align="center" prop="updater" />
       <el-table-column label="归档时间" align="center" prop="updateTime" :formatter="dateFormatter" width="180" />
-      <el-table-column label="操作" align="center" width="320">
+      <el-table-column label="操作" align="center" width="440">
         <template #default="scope">
           <el-button link type="primary" @click="handleDetail(scope.row.id)">查看详情</el-button>
+          <el-button link type="success" @click="handleExportAttendee(scope.row.id)">导出签到表</el-button>
           <el-button link type="success" @click="handleExportFiles(scope.row.id)">导出资料</el-button>
+          <el-button link type="success" @click="handleExportMarks(scope.row.id)">导出批注</el-button>
           <el-button link type="success" @click="handleExportVotes(scope.row.id)">导出表决</el-button>
           <el-button link type="warning" @click="handleRollback(scope.row.id)">撤回归档</el-button>
         </template>
@@ -54,6 +56,7 @@
 
 <script lang="ts" setup>
 import { dateFormatter } from '@/utils/formatTime'
+import * as AttendeeApi from '@/api/meeting/attendee'
 import * as MeetingFileApi from '@/api/meeting/file'
 import * as MeetingApi from '@/api/meeting/info'
 import * as MeetingVoteApi from '@/api/meeting/vote'
@@ -112,8 +115,16 @@ const handleRollback = async (id: number) => {
   } catch {}
 }
 
+const handleExportAttendee = async (id: number) => {
+  await AttendeeApi.exportAttendeeExcel(id)
+}
+
 const handleExportFiles = async (id: number) => {
   await MeetingFileApi.exportMeetingFileExcel(id)
+}
+
+const handleExportMarks = async (id: number) => {
+  await MeetingFileApi.exportMeetingDocumentMarkExcel(id)
 }
 
 const handleExportVotes = async (id: number) => {

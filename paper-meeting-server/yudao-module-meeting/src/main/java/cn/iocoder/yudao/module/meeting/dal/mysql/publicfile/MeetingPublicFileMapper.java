@@ -7,6 +7,10 @@ import cn.iocoder.yudao.module.meeting.controller.admin.publicfile.vo.MeetingPub
 import cn.iocoder.yudao.module.meeting.dal.dataobject.publicfile.MeetingPublicFileDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+
 @Mapper
 public interface MeetingPublicFileMapper extends BaseMapperX<MeetingPublicFileDO> {
 
@@ -17,5 +21,25 @@ public interface MeetingPublicFileMapper extends BaseMapperX<MeetingPublicFileDO
                 .eqIfPresent(MeetingPublicFileDO::getEnabled, reqVO.getEnabled())
                 .orderByAsc(MeetingPublicFileDO::getSort)
                 .orderByDesc(MeetingPublicFileDO::getId));
+    }
+
+    default List<MeetingPublicFileDO> selectListForCategoryTree() {
+        return selectList(new LambdaQueryWrapperX<MeetingPublicFileDO>()
+                .orderByAsc(MeetingPublicFileDO::getCategory)
+                .orderByAsc(MeetingPublicFileDO::getSort)
+                .orderByDesc(MeetingPublicFileDO::getId));
+    }
+
+    default List<MeetingPublicFileDO> selectListForArchive(LocalDateTime beforeTime, String sourceCategoryPrefix) {
+        return selectList(new LambdaQueryWrapperX<MeetingPublicFileDO>()
+                .ltIfPresent(MeetingPublicFileDO::getCreateTime, beforeTime)
+                .likeIfPresent(MeetingPublicFileDO::getCategory, sourceCategoryPrefix)
+                .orderByAsc(MeetingPublicFileDO::getCategory)
+                .orderByDesc(MeetingPublicFileDO::getId));
+    }
+
+    default List<MeetingPublicFileDO> selectListByIds(Collection<Long> ids) {
+        return selectList(new LambdaQueryWrapperX<MeetingPublicFileDO>()
+                .inIfPresent(MeetingPublicFileDO::getId, ids));
     }
 }

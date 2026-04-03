@@ -14,6 +14,11 @@ public interface MeetingWebSocketMessageType {
     String SYNC_STOPPED = "meeting-sync-stopped";
     String SERVICE_REQUESTED = "meeting-service-requested";
     String SERVICE_UPDATED = "meeting-service-updated";
+    String VIDEO_OPENED = "meeting-video-opened";
+    String VIDEO_CONTROLLED = "meeting-video-controlled";
+    String TIMER_STARTED = "meeting-timer-started";
+    String TIMER_UPDATED = "meeting-timer-updated";
+    String TIMER_STOPPED = "meeting-timer-stopped";
 
     String CLIENT_NOTICE_PUBLISH_SEND = "meeting-notice-publish-send";
     String CLIENT_FORCE_RETURN_SEND = "meeting-force-return-send";
@@ -25,4 +30,6 @@ public interface MeetingWebSocketMessageType {
     String CLIENT_SYNC_STATUS_SEND = "meeting-sync-status-send";
     String CLIENT_SERVICE_REQUEST_SEND = "meeting-service-request-send";
     String CLIENT_SERVICE_STATUS_SEND = "meeting-service-status-send";
+    String CLIENT_VIDEO_CONTROL_SEND = "meeting-video-control-send";
+    String CLIENT_TIMER_CONTROL_SEND = "meeting-timer-control-send";
 }

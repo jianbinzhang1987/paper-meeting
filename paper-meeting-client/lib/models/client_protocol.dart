@@ -18,6 +18,11 @@ enum SyncMessageType {
   noticePublished('NOTICE_PUBLISHED'),
   serviceRequested('SERVICE_REQUESTED'),
   serviceUpdated('SERVICE_UPDATED'),
+  videoOpened('VIDEO_OPENED'),
+  videoControlled('VIDEO_CONTROLLED'),
+  timerStarted('TIMER_STARTED'),
+  timerUpdated('TIMER_UPDATED'),
+  timerStopped('TIMER_STOPPED'),
   forceReturn('FORCE_RETURN'),
   forceLogout('FORCE_LOGOUT');
 

@@ -13,6 +13,75 @@
     <ContentWrap>
       <div class="toolbar">
         <div>
+          <div class="toolbar-title">快速告警</div>
+          <div class="toolbar-subtitle">优先处理待审批、即将开始、会议室冲突与终端异常</div>
+        </div>
+      </div>
+      <el-row :gutter="16">
+        <el-col :xs="24" :md="6">
+          <el-card shadow="never" class="alert-card alert-card--warning">
+            <div class="alert-card__header">
+              <span>待审批会议</span>
+              <strong>{{ pendingApprovalCount }}</strong>
+            </div>
+            <div class="alert-card__desc">
+              {{ pendingApprovalCount ? '存在待审批预约，建议尽快处理以免影响会前配置。' : '当前没有待审批预约。' }}
+            </div>
+            <el-button link type="primary" @click="goMeetingList(1)">查看审批列表</el-button>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :md="6">
+          <el-card shadow="never" class="alert-card alert-card--danger">
+            <div class="alert-card__header">
+              <span>两小时内开始</span>
+              <strong>{{ imminentMeetings.length }}</strong>
+            </div>
+            <div class="alert-list" v-if="imminentMeetings.length">
+              <div v-for="item in imminentMeetings.slice(0, 3)" :key="item.meetingId" class="alert-list__item">
+                <span>{{ item.meetingName }}</span>
+                <span>{{ formatDateTime(item.startTime) }}</span>
+              </div>
+            </div>
+            <div v-else class="alert-card__desc">当前没有两小时内开始的会议。</div>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :md="6">
+          <el-card shadow="never" class="alert-card alert-card--info">
+            <div class="alert-card__header">
+              <span>会议室冲突</span>
+              <strong>{{ roomConflicts.length }}</strong>
+            </div>
+            <div class="alert-list" v-if="roomConflicts.length">
+              <div v-for="item in roomConflicts.slice(0, 3)" :key="item.id" class="alert-list__item">
+                <span>{{ item.roomName }}</span>
+                <span>{{ item.timeText }}</span>
+              </div>
+            </div>
+            <div v-else class="alert-card__desc">今日会议室排期未发现时间重叠。</div>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :md="6">
+          <el-card shadow="never" class="alert-card alert-card--critical">
+            <div class="alert-card__header">
+              <span>终端异常</span>
+              <strong>{{ terminalAlerts.length }}</strong>
+            </div>
+            <div class="alert-list" v-if="terminalAlerts.length">
+              <div v-for="item in terminalAlerts.slice(0, 3)" :key="item.id" class="alert-list__item">
+                <span>{{ item.terminal }}</span>
+                <span>{{ item.reason }}</span>
+              </div>
+            </div>
+            <div v-else class="alert-card__desc">当前未发现离线超时或连接异常终端。</div>
+            <el-button link type="primary" @click="goUiConfig">查看终端回执</el-button>
+          </el-card>
+        </el-col>
+      </el-row>
+    </ContentWrap>
+
+    <ContentWrap>
+      <div class="toolbar">
+        <div>
           <div class="toolbar-title">今日会议室占用</div>
           <div class="toolbar-subtitle">按会议室展示当前占用和下一场安排</div>
         </div>
@@ -141,7 +210,9 @@
 import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
 import { DICT_TYPE } from '@/utils/dict'
+import * as MeetingInfoApi from '@/api/meeting/info'
 import * as MeetingRoomApi from '@/api/meeting/room'
+import * as TerminalStatusApi from '@/api/meeting/terminalStatus'
 import MeetingForm from '@/views/meeting/my/MeetingForm.vue'
 import MeetingDetail from '@/views/meeting/my/components/MeetingDetail.vue'
 
@@ -149,6 +220,8 @@ defineOptions({ name: 'MeetingHome' })
 
 const router = useRouter()
 const loading = ref(false)
+const pendingApprovalCount = ref(0)
+const terminalAlerts = ref<Array<{ id: number; terminal: string; reason: string }>>([])
 const overview = ref<MeetingRoomApi.MeetingRoomOverviewVO>({
   now: '',
   roomTotal: 0,
@@ -186,13 +259,78 @@ const summaryCards = computed(() => [
   }
 ])
 
+const imminentMeetings = computed(() => {
+  const now = dayjs()
+  const end = now.add(2, 'hour')
+  return overview.value.todayMeetings.filter((item) => {
+    const start = dayjs(item.startTime)
+    return start.isAfter(now) && start.isBefore(end)
+  })
+})
+
+const roomConflicts = computed(() => {
+  const result: Array<{ id: string; roomName: string; timeText: string }> = []
+  const roomMeetings = new Map<number, MeetingRoomApi.MeetingRoomTodayMeetingVO[]>()
+  overview.value.todayMeetings.forEach((item) => {
+    if (!item.roomId) return
+    const current = roomMeetings.get(item.roomId) || []
+    current.push(item)
+    roomMeetings.set(item.roomId, current)
+  })
+  roomMeetings.forEach((items) => {
+    const sorted = [...items].sort((a, b) => dayjs(a.startTime).valueOf() - dayjs(b.startTime).valueOf())
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1]
+      const current = sorted[i]
+      if (dayjs(current.startTime).isBefore(dayjs(prev.endTime))) {
+        result.push({
+          id: `${prev.meetingId}-${current.meetingId}`,
+          roomName: current.roomName || '未命名会议室',
+          timeText: `${formatDateTime(prev.startTime)} 与 ${formatDateTime(current.startTime)}`
+        })
+      }
+    }
+  })
+  return result
+})
+
 const getOverview = async () => {
   loading.value = true
   try {
-    overview.value = await MeetingRoomApi.getMeetingRoomOverview()
+    const [overviewResp, pendingResp, terminalResp] = await Promise.all([
+      MeetingRoomApi.getMeetingRoomOverview(),
+      MeetingInfoApi.getMeetingPage({ pageNo: 1, pageSize: 1, status: 1 }),
+      TerminalStatusApi.getMeetingTerminalStatusList({ clientType: 1 }).catch(() => [])
+    ])
+    overview.value = overviewResp
+    pendingApprovalCount.value = pendingResp.total
+    terminalAlerts.value = (terminalResp || [])
+      .filter((item) => isTerminalAbnormal(item))
+      .slice(0, 20)
+      .map((item) => ({
+        id: item.id,
+        terminal: `${item.roomName || '-'} / ${item.seatName || '-'}${item.deviceName ? ` (${item.deviceName})` : ''}`,
+        reason: terminalAbnormalReason(item)
+      }))
   } finally {
     loading.value = false
   }
+}
+
+const isTerminalAbnormal = (item: TerminalStatusApi.MeetingTerminalStatusVO) => {
+  const status = (item.connectionStatus || '').toLowerCase()
+  const abnormalStatus = status.includes('fail') || status.includes('error') || status.includes('offline') || status.includes('disconnect') || status.includes('abnormal')
+  const heartbeatTimeout = !item.lastHeartbeatTime || dayjs(item.lastHeartbeatTime).isBefore(dayjs().subtract(30, 'minute'))
+  return abnormalStatus || heartbeatTimeout
+}
+
+const terminalAbnormalReason = (item: TerminalStatusApi.MeetingTerminalStatusVO) => {
+  const status = item.connectionStatus || ''
+  const statusLower = status.toLowerCase()
+  if (statusLower.includes('fail') || statusLower.includes('error') || statusLower.includes('offline') || statusLower.includes('disconnect') || statusLower.includes('abnormal')) {
+    return `连接异常${status ? `(${status})` : ''}`
+  }
+  return item.lastHeartbeatTime ? `心跳超时(${formatDateTime(String(item.lastHeartbeatTime))})` : '未上报心跳'
 }
 
 const openForm = (type: string, id?: number, meetingType?: number, presetData?: Record<string, any>) => {
@@ -225,6 +363,14 @@ const openMeetingDetail = (id: number) => {
 
 const goRoomManage = () => {
   router.push('/meeting/room')
+}
+
+const goMeetingList = (status?: number) => {
+  router.push(status !== undefined ? `/meeting/list?status=${status}` : '/meeting/list')
+}
+
+const goUiConfig = () => {
+  router.push('/meeting/ui-config')
 }
 
 const roomStatusText = (room: MeetingRoomApi.MeetingRoomOverviewItemVO) => {
@@ -313,6 +459,64 @@ onMounted(() => {
   .room-card {
     min-height: 286px;
     border: 1px solid rgba(22, 58, 138, 0.08);
+  }
+
+  .alert-card {
+    min-height: 180px;
+    border: none;
+  }
+
+  .alert-card--warning {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(254, 243, 199, 0.68));
+  }
+
+  .alert-card--danger {
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.12), rgba(254, 226, 226, 0.78));
+  }
+
+  .alert-card--info {
+    background: linear-gradient(135deg, rgba(14, 116, 144, 0.12), rgba(224, 242, 254, 0.78));
+  }
+
+  .alert-card--critical {
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.14), rgba(254, 226, 226, 0.84));
+  }
+
+  .alert-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .alert-card__header strong {
+    font-size: 34px;
+    line-height: 1;
+  }
+
+  .alert-card__desc {
+    margin: 14px 0 10px;
+    color: var(--el-text-color-secondary);
+    line-height: 1.7;
+    font-size: 13px;
+  }
+
+  .alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0 4px;
+  }
+
+  .alert-list__item {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed rgba(15, 23, 42, 0.12);
+    color: var(--el-text-color-primary);
+    font-size: 13px;
   }
 
   .room-header,

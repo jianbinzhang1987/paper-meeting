@@ -8,17 +8,32 @@ SET @meeting_root_id = LAST_INSERT_ID();
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `status`, `visible`, `keep_alive`, `always_show`, `create_time`, `update_time`, `deleted`)
 VALUES
-('会议首页', 'meeting:room:query', 2, 1, @meeting_root_id, 'home', 'ep:home-filled', 'meeting/home/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('我的会议', 'meeting:info:query', 2, 2, @meeting_root_id, 'my', 'ep:user', 'meeting/my/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('预定审批', 'meeting:info:approve', 2, 3, @meeting_root_id, 'approval', 'ep:finished', 'meeting/approval/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('会议列表', 'meeting:info:query', 2, 4, @meeting_root_id, 'list', 'ep:tickets', 'meeting/list/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('已归档会议', 'meeting:info:query', 2, 5, @meeting_root_id, 'archived', 'ep:folder-opened', 'meeting/archived/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('会议模板', 'meeting:template:query', 2, 6, @meeting_root_id, 'template', 'ep:files', 'meeting/template/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('会议室管理', 'meeting:room:query', 2, 7, @meeting_root_id, 'room', 'ep:office-building', 'meeting/room/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('会中消息', 'meeting:notification:query', 2, 8, @meeting_root_id, 'notification', 'ep:chat-dot-round', 'meeting/notification/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('公共资料库', 'meeting:public-file:query', 2, 9, @meeting_root_id, 'public-file', 'ep:collection', 'meeting/public-file/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('客户端样式', 'meeting:ui-config:query', 2, 10, @meeting_root_id, 'ui-config', 'ep:brush', 'meeting/ui-config/index', 0, 1, 1, 0, NOW(), NOW(), 0),
-('安装包管理', 'meeting:app-version:query', 2, 11, @meeting_root_id, 'app-version', 'ep:download', 'meeting/app-version/index', 0, 1, 1, 0, NOW(), NOW(), 0);
+('会议工作台', '', 2, 1, @meeting_root_id, 'workspace', 'ep:monitor', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('会中服务', '', 2, 2, @meeting_root_id, 'service', 'ep:operation', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('资源配置', '', 2, 3, @meeting_root_id, 'resource', 'ep:collection-tag', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('终端运维', '', 2, 4, @meeting_root_id, 'terminal', 'ep:cpu', '', 0, 1, 1, 1, NOW(), NOW(), 0);
+
+SET @meeting_workspace_id = LAST_INSERT_ID() - 3;
+SET @meeting_service_id = LAST_INSERT_ID() - 2;
+SET @meeting_resource_id = LAST_INSERT_ID() - 1;
+SET @meeting_terminal_id = LAST_INSERT_ID();
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `status`, `visible`, `keep_alive`, `always_show`, `create_time`, `update_time`, `deleted`)
+VALUES
+('会议首页', 'meeting:room:query', 2, 1, @meeting_workspace_id, 'home', 'ep:home-filled', 'meeting/home/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('我的会议', 'meeting:info:query', 2, 2, @meeting_workspace_id, 'my', 'ep:user', 'meeting/my/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('预定审批', 'meeting:info:approve', 2, 3, @meeting_workspace_id, 'approval', 'ep:finished', 'meeting/approval/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('会议列表', 'meeting:info:query', 2, 4, @meeting_workspace_id, 'list', 'ep:tickets', 'meeting/list/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('已归档会议', 'meeting:info:query', 2, 5, @meeting_workspace_id, 'archived', 'ep:folder-opened', 'meeting/archived/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('会议模板', 'meeting:template:query', 2, 6, @meeting_workspace_id, 'template', 'ep:files', 'meeting/template/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('会议室管理', 'meeting:room:query', 2, 7, @meeting_workspace_id, 'room', 'ep:office-building', 'meeting/room/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('表决控制中心', 'meeting:vote:query', 2, 1, @meeting_service_id, 'control', 'ep:histogram', 'meeting/control/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('会中消息', 'meeting:notification:query', 2, 2, @meeting_service_id, 'notification', 'ep:chat-dot-round', 'meeting/notification/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('公共资料库', 'meeting:public-file:query', 2, 1, @meeting_resource_id, 'public-file', 'ep:collection', 'meeting/public-file/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('会议贴牌', 'meeting:branding:query', 2, 2, @meeting_resource_id, 'branding', 'ep:brush-filled', 'meeting/branding/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('会议用户组', 'meeting:user-group:query', 2, 3, @meeting_resource_id, 'user-group', 'ep:user-filled', 'meeting/user-group/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('客户端样式', 'meeting:ui-config:query', 2, 1, @meeting_terminal_id, 'ui-config', 'ep:brush', 'meeting/ui-config/index', 0, 1, 1, 0, NOW(), NOW(), 0),
+('安装包管理', 'meeting:app-version:query', 2, 2, @meeting_terminal_id, 'app-version', 'ep:download', 'meeting/app-version/index', 0, 1, 1, 0, NOW(), NOW(), 0);
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `status`, `visible`, `keep_alive`, `always_show`, `create_time`, `update_time`, `deleted`)
 VALUES
@@ -36,6 +51,7 @@ VALUES
 ('消息创建', 'meeting:notification:create', 3, 12, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('消息修改', 'meeting:notification:update', 3, 13, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('消息删除', 'meeting:notification:delete', 3, 14, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('消息发布', 'meeting:notification:publish', 3, 53, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('模板查询', 'meeting:template:query', 3, 15, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('模板创建', 'meeting:template:create', 3, 16, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('议题查询', 'meeting:agenda:query', 3, 17, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
@@ -52,6 +68,9 @@ VALUES
 ('表决创建', 'meeting:vote:create', 3, 28, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('表决修改', 'meeting:vote:update', 3, 29, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('表决删除', 'meeting:vote:delete', 3, 30, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('表决发布结果', 'meeting:vote:publish', 3, 54, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('表决导出', 'meeting:vote:export', 3, 55, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('强制返回同屏', 'meeting:vote:force-return', 3, 56, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('公共资料查询', 'meeting:public-file:query', 3, 31, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('公共资料创建', 'meeting:public-file:create', 3, 32, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('公共资料修改', 'meeting:public-file:update', 3, 33, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
@@ -63,7 +82,17 @@ VALUES
 ('安装包查询', 'meeting:app-version:query', 3, 39, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('安装包创建', 'meeting:app-version:create', 3, 40, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
 ('安装包修改', 'meeting:app-version:update', 3, 41, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
-('安装包删除', 'meeting:app-version:delete', 3, 42, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0);
+('安装包删除', 'meeting:app-version:delete', 3, 42, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('贴牌查询', 'meeting:branding:query', 3, 43, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('贴牌创建', 'meeting:branding:create', 3, 44, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('贴牌修改', 'meeting:branding:update', 3, 45, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('贴牌删除', 'meeting:branding:delete', 3, 46, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('用户组查询', 'meeting:user-group:query', 3, 47, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('用户组创建', 'meeting:user-group:create', 3, 48, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('用户组修改', 'meeting:user-group:update', 3, 49, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('用户组删除', 'meeting:user-group:delete', 3, 50, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('消息明细查询', 'meeting:notification:query', 3, 51, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0),
+('终端状态查询', 'meeting:terminal-status:query', 3, 52, @meeting_root_id, '', '', '', 0, 1, 1, 1, NOW(), NOW(), 0);
 
 INSERT INTO `system_dict_type` (`name`, `type`, `status`, `remark`, `create_time`, `update_time`, `deleted`)
 VALUES

@@ -1,8 +1,9 @@
 package cn.iocoder.yudao.module.meeting.websocket.listener;
 
 import cn.iocoder.yudao.framework.websocket.core.listener.WebSocketMessageListener;
+import cn.iocoder.yudao.framework.security.core.LoginUser;
 import cn.iocoder.yudao.framework.websocket.core.util.WebSocketFrameworkUtils;
-import cn.iocoder.yudao.module.meeting.service.realtime.MeetingRealtimeStateService;
+import cn.iocoder.yudao.module.meeting.service.meeting.MeetingServiceRequestService;
 import cn.iocoder.yudao.module.meeting.websocket.MeetingWebSocketMessageType;
 import cn.iocoder.yudao.module.meeting.websocket.MeetingWebSocketSender;
 import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsServicePayload;
@@ -14,14 +15,18 @@ import org.springframework.web.socket.WebSocketSession;
 public class MeetingServiceRequestMessageListener implements WebSocketMessageListener<MeetingWsServicePayload> {
 
     @Resource
-    private MeetingRealtimeStateService meetingRealtimeStateService;
+    private MeetingServiceRequestService meetingServiceRequestService;
     @Resource
     private MeetingWebSocketSender meetingWebSocketSender;
 
     @Override
     public void onMessage(WebSocketSession session, MeetingWsServicePayload message) {
         message.setRequesterUserId(WebSocketFrameworkUtils.getLoginUserId(session));
-        MeetingWsServicePayload payload = meetingRealtimeStateService.createServiceRequest(message);
+        LoginUser loginUser = WebSocketFrameworkUtils.getLoginUser(session);
+        if (loginUser != null && loginUser.getInfo() != null) {
+            message.setRequesterName(loginUser.getInfo().get(LoginUser.INFO_KEY_NICKNAME));
+        }
+        MeetingWsServicePayload payload = meetingServiceRequestService.saveRequest(message);
         meetingWebSocketSender.sendServiceRequest(payload);
     }
 

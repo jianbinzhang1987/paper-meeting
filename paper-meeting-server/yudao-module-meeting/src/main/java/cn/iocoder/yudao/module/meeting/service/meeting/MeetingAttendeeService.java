@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.meeting.service.meeting;
 
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingAttendeeBaseVO;
+import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingAttendeeImportGroupReqVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingSeatAssignReqVO;
 import cn.iocoder.yudao.module.meeting.dal.dataobject.meeting.MeetingAttendeeDO;
 
@@ -19,5 +20,7 @@ public interface MeetingAttendeeService {
     void signIn(Long meetingId, Long userId);
 
     void assignSeats(List<MeetingSeatAssignReqVO> assignReqVOList);
+
+    void importByGroups(MeetingAttendeeImportGroupReqVO reqVO);
 
 }

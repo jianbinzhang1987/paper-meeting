@@ -2,9 +2,11 @@ package cn.iocoder.yudao.module.meeting.controller.admin.meeting;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
+import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingDocumentMarkExportVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingFileCreateReqVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingFileExportVO;
 import cn.iocoder.yudao.module.meeting.dal.dataobject.meeting.MeetingFileDO;
+import cn.iocoder.yudao.module.meeting.service.meeting.MeetingDocumentMarkService;
 import cn.iocoder.yudao.module.meeting.service.meeting.MeetingFileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,6 +31,8 @@ public class MeetingFileController {
 
     @Resource
     private MeetingFileService meetingFileService;
+    @Resource
+    private MeetingDocumentMarkService meetingDocumentMarkService;
 
     @PostMapping("/create")
     @Operation(summary = "创建文件记录")
@@ -62,6 +66,16 @@ public class MeetingFileController {
                                 HttpServletResponse response) throws IOException {
         List<MeetingFileExportVO> data = meetingFileService.getFileExportList(meetingId);
         ExcelUtils.write(response, "会议资料清单.xls", "资料清单", MeetingFileExportVO.class, data);
+    }
+
+    @GetMapping("/export-mark-excel")
+    @Operation(summary = "导出手写批注备份")
+    @Parameter(name = "meetingId", description = "会议编号", required = true)
+    @PreAuthorize("@ss.hasPermission('meeting:file:query')")
+    public void exportMarkExcel(@RequestParam("meetingId") Long meetingId,
+                                HttpServletResponse response) throws IOException {
+        List<MeetingDocumentMarkExportVO> data = meetingDocumentMarkService.getMarkExportList(meetingId);
+        ExcelUtils.write(response, "会议批注备份.xls", "批注备份", MeetingDocumentMarkExportVO.class, data);
     }
 
 }

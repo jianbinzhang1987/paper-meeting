@@ -86,6 +86,7 @@ FROM (
     UNION ALL SELECT '消息创建', 'meeting:notification:create', 12
     UNION ALL SELECT '消息修改', 'meeting:notification:update', 13
     UNION ALL SELECT '消息删除', 'meeting:notification:delete', 14
+    UNION ALL SELECT '消息发布', 'meeting:notification:publish', 43
     UNION ALL SELECT '模板查询', 'meeting:template:query', 15
     UNION ALL SELECT '模板创建', 'meeting:template:create', 16
     UNION ALL SELECT '议题查询', 'meeting:agenda:query', 17
@@ -102,6 +103,9 @@ FROM (
     UNION ALL SELECT '表决创建', 'meeting:vote:create', 28
     UNION ALL SELECT '表决修改', 'meeting:vote:update', 29
     UNION ALL SELECT '表决删除', 'meeting:vote:delete', 30
+    UNION ALL SELECT '表决发布结果', 'meeting:vote:publish', 44
+    UNION ALL SELECT '表决导出', 'meeting:vote:export', 45
+    UNION ALL SELECT '强制返回同屏', 'meeting:vote:force-return', 46
     UNION ALL SELECT '公共资料查询', 'meeting:public-file:query', 31
     UNION ALL SELECT '公共资料创建', 'meeting:public-file:create', 32
     UNION ALL SELECT '公共资料修改', 'meeting:public-file:update', 33
@@ -135,6 +139,7 @@ JOIN (
     UNION ALL SELECT 'meeting:notification:create', 12, '消息创建'
     UNION ALL SELECT 'meeting:notification:update', 13, '消息修改'
     UNION ALL SELECT 'meeting:notification:delete', 14, '消息删除'
+    UNION ALL SELECT 'meeting:notification:publish', 43, '消息发布'
     UNION ALL SELECT 'meeting:template:query', 15, '模板查询'
     UNION ALL SELECT 'meeting:template:create', 16, '模板创建'
     UNION ALL SELECT 'meeting:agenda:query', 17, '议题查询'
@@ -151,6 +156,9 @@ JOIN (
     UNION ALL SELECT 'meeting:vote:create', 28, '表决创建'
     UNION ALL SELECT 'meeting:vote:update', 29, '表决修改'
     UNION ALL SELECT 'meeting:vote:delete', 30, '表决删除'
+    UNION ALL SELECT 'meeting:vote:publish', 44, '表决发布结果'
+    UNION ALL SELECT 'meeting:vote:export', 45, '表决导出'
+    UNION ALL SELECT 'meeting:vote:force-return', 46, '强制返回同屏'
     UNION ALL SELECT 'meeting:public-file:query', 31, '公共资料查询'
     UNION ALL SELECT 'meeting:public-file:create', 32, '公共资料创建'
     UNION ALL SELECT 'meeting:public-file:update', 33, '公共资料修改'

@@ -26,3 +26,7 @@ export const deleteMeetingFile = (id: number) => {
 export const exportMeetingFileExcel = (meetingId: number) => {
   return request.download({ url: '/meeting/file/export-excel', params: { meetingId } })
 }
+
+export const exportMeetingDocumentMarkExcel = (meetingId: number) => {
+  return request.download({ url: '/meeting/file/export-mark-excel', params: { meetingId } })
+}

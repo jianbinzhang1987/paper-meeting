@@ -2,8 +2,8 @@
   <div>
     <div class="mb-10px flex flex-wrap gap-8px">
       <el-button type="primary" @click="handleAdd">添加表决</el-button>
-      <el-button type="warning" plain @click="handleForceReturn">强制返回同屏</el-button>
-      <el-button type="success" plain @click="handleExport">导出表决结果</el-button>
+      <el-button v-hasPermi="['meeting:vote:force-return']" type="warning" plain @click="handleForceReturn">强制返回同屏</el-button>
+      <el-button v-hasPermi="['meeting:vote:export']" type="success" plain @click="handleExport">导出表决结果</el-button>
     </div>
     <el-table :data="list">
       <el-table-column label="表决标题" prop="title" min-width="180" />
@@ -53,6 +53,7 @@
             结束
           </el-button>
           <el-button
+            v-hasPermi="['meeting:vote:publish']"
             v-if="scope.row.status === 1 || scope.row.status === 2"
             link
             type="success"

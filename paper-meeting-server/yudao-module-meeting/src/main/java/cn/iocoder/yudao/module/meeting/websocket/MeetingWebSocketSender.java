@@ -10,6 +10,8 @@ import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsControlPayload;
 import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsNoticePayload;
 import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsServicePayload;
 import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsSyncPayload;
+import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsTimerPayload;
+import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsVideoPayload;
 import cn.iocoder.yudao.module.meeting.websocket.vo.MeetingWsVotePayload;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
@@ -84,6 +86,14 @@ public class MeetingWebSocketSender {
     public void sendServiceStatus(MeetingWsServicePayload payload) {
         sendToMeetingModerators(payload.getMeetingId(), MeetingWebSocketMessageType.SERVICE_UPDATED, payload);
         sendToMember(payload.getRequesterUserId(), MeetingWebSocketMessageType.SERVICE_UPDATED, payload);
+    }
+
+    public void sendVideoState(MeetingWsVideoPayload payload, String messageType) {
+        sendToMeetingAttendees(payload.getMeetingId(), messageType, payload);
+    }
+
+    public void sendTimerState(MeetingWsTimerPayload payload, String messageType) {
+        sendToMeetingAttendees(payload.getMeetingId(), messageType, payload);
     }
 
     private void sendToMeetingAttendees(Long meetingId, String messageType, Object payload) {

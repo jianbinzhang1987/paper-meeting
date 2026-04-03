@@ -5,7 +5,9 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.meeting.controller.admin.notification.vo.MeetingNotificationCreateReqVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.notification.vo.MeetingNotificationPageReqVO;
+import cn.iocoder.yudao.module.meeting.controller.admin.notification.vo.MeetingNotificationReadDetailRespVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.notification.vo.MeetingNotificationRespVO;
+import cn.iocoder.yudao.module.meeting.controller.admin.notification.vo.MeetingNotificationStatsRespVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.notification.vo.MeetingNotificationUpdateReqVO;
 import cn.iocoder.yudao.module.meeting.dal.dataobject.notification.MeetingNotificationDO;
 import cn.iocoder.yudao.module.meeting.service.notification.MeetingNotificationService;
@@ -71,9 +73,23 @@ public class MeetingNotificationController {
         return success(new PageResult<>(BeanUtils.toBean(page.getList(), MeetingNotificationRespVO.class), page.getTotal()));
     }
 
+    @GetMapping("/page-with-stats")
+    @Operation(summary = "获得会议消息分页（含阅读统计）")
+    @PreAuthorize("@ss.hasPermission('meeting:notification:query')")
+    public CommonResult<PageResult<MeetingNotificationStatsRespVO>> getPageWithStats(@Valid MeetingNotificationPageReqVO pageReqVO) {
+        return success(meetingNotificationService.getPageWithStats(pageReqVO));
+    }
+
+    @GetMapping("/read-detail")
+    @Operation(summary = "获得会议消息阅读明细")
+    @PreAuthorize("@ss.hasPermission('meeting:notification:query')")
+    public CommonResult<MeetingNotificationReadDetailRespVO> getReadDetail(@RequestParam("id") Long id) {
+        return success(meetingNotificationService.getReadDetail(id));
+    }
+
     @PostMapping("/publish")
     @Operation(summary = "发布会议消息")
-    @PreAuthorize("@ss.hasPermission('meeting:notification:update')")
+    @PreAuthorize("@ss.hasPermission('meeting:notification:publish')")
     public CommonResult<Boolean> publish(@RequestParam("id") Long id) {
         meetingNotificationService.publish(id);
         MeetingNotificationDO notice = meetingNotificationService.get(id);

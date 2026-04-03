@@ -33,12 +33,27 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="阅读进度" width="180">
+        <template #default="scope">
+          <span>{{ scope.row.readCount || 0 }}/{{ scope.row.attendeeCount || 0 }}</span>
+          <el-tag class="ml-8px" size="small" type="info">未读 {{ scope.row.unreadCount || 0 }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="发布时间" prop="publishedTime" :formatter="dateFormatter" width="180" />
       <el-table-column label="创建时间" prop="createTime" :formatter="dateFormatter" width="180" />
       <el-table-column label="操作" width="220">
         <template #default="scope">
+          <el-button link type="primary" @click="openReadDetail(scope.row)">明细</el-button>
           <el-button link type="primary" @click="openForm('update', scope.row.id)">编辑</el-button>
-          <el-button link type="success" v-if="scope.row.publishStatus !== 1" @click="handlePublish(scope.row.id)">发布</el-button>
+          <el-button
+            v-hasPermi="['meeting:notification:publish']"
+            link
+            type="success"
+            v-if="scope.row.publishStatus !== 1"
+            @click="handlePublish(scope.row.id)"
+          >
+            发布
+          </el-button>
           <el-button link type="danger" @click="handleDelete(scope.row.id)">删除</el-button>
         </template>
       </el-table-column>
@@ -65,9 +80,94 @@
       <el-button type="primary" :loading="formLoading" @click="submitForm">确定</el-button>
     </template>
   </Dialog>
+
+  <Dialog v-model="readDetailVisible" title="阅读明细" width="900px">
+    <div v-loading="readDetailLoading">
+      <el-row :gutter="12" class="mb-16px">
+        <el-col :span="8">
+          <el-statistic title="参会总数" :value="readDetail?.attendeeCount || 0" />
+        </el-col>
+        <el-col :span="8">
+          <el-statistic title="已读人数" :value="readDetail?.readCount || 0" />
+        </el-col>
+        <el-col :span="8">
+          <el-statistic title="未读人数" :value="readDetail?.unreadCount || 0" />
+        </el-col>
+      </el-row>
+      <el-row :gutter="12" class="mb-16px">
+        <el-col :span="8">
+          <el-statistic title="已送达" :value="readDetail?.deliveredCount || 0" />
+        </el-col>
+        <el-col :span="8">
+          <el-statistic title="送达失败" :value="readDetail?.failedCount || 0" />
+        </el-col>
+        <el-col :span="8">
+          <el-statistic title="待送达" :value="readDetail?.pendingCount || 0" />
+        </el-col>
+      </el-row>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <div class="font-600 mb-8px">已读名单</div>
+          <el-table :data="readDetail?.readUsers || []" height="360">
+            <el-table-column label="姓名" prop="nickname" min-width="120" />
+            <el-table-column label="角色" min-width="100">
+              <template #default="scope">{{ roleLabelMap[scope.row.role] || '与会人员' }}</template>
+            </el-table-column>
+            <el-table-column label="座位" prop="seatId" min-width="100" />
+            <el-table-column label="已读时间" prop="readTime" :formatter="dateFormatter" min-width="170" />
+          </el-table>
+        </el-col>
+        <el-col :span="12">
+          <div class="font-600 mb-8px">未读名单</div>
+          <el-table :data="readDetail?.unreadUsers || []" height="360">
+            <el-table-column label="姓名" prop="nickname" min-width="120" />
+            <el-table-column label="角色" min-width="100">
+              <template #default="scope">{{ roleLabelMap[scope.row.role] || '与会人员' }}</template>
+            </el-table-column>
+            <el-table-column label="座位" prop="seatId" min-width="100" />
+          </el-table>
+        </el-col>
+      </el-row>
+      <div class="font-600 mt-16px mb-8px">终端送达回执</div>
+      <el-table :data="readDetail?.terminalReceipts || []" height="320" empty-text="暂无终端回执">
+        <el-table-column label="用户" min-width="140">
+          <template #default="scope">
+            <div>{{ scope.row.nickname }}</div>
+            <div class="text-12px text-[var(--el-text-color-secondary)]">{{ roleLabelMap[scope.row.role] || '与会人员' }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="终端" min-width="220">
+          <template #default="scope">
+            <div>{{ scope.row.roomName || '-' }} / {{ scope.row.seatName || scope.row.seatId || '-' }}</div>
+            <div class="text-12px text-[var(--el-text-color-secondary)]">{{ scope.row.deviceName || '-' }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="送达状态" width="120">
+          <template #default="scope">
+            <el-tag :type="deliveryTagType(scope.row.deliveryStatus)">{{ scope.row.deliveryStatusText || '-' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="在线" width="90">
+          <template #default="scope">
+            <el-tag :type="scope.row.online ? 'success' : 'info'">{{ scope.row.online ? '在线' : '离线' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="阅读状态" width="100">
+          <template #default="scope">
+            <el-tag :type="scope.row.read ? 'success' : 'warning'">{{ scope.row.read ? '已读' : '未读' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="失败原因" prop="failureReason" min-width="200" show-overflow-tooltip />
+        <el-table-column label="最后心跳" min-width="170">
+          <template #default="scope">{{ scope.row.lastHeartbeatTime ? dayjs(scope.row.lastHeartbeatTime).format('YYYY-MM-DD HH:mm:ss') : '-' }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
+  </Dialog>
 </template>
 
 <script lang="ts" setup>
+import dayjs from 'dayjs'
 import { dateFormatter } from '@/utils/formatTime'
 import * as NotificationApi from '@/api/meeting/notification'
 
@@ -99,11 +199,19 @@ const formRules = reactive({
   meetingId: [{ required: true, message: '会议编号不能为空', trigger: 'blur' }],
   content: [{ required: true, message: '通知内容不能为空', trigger: 'blur' }]
 })
+const roleLabelMap: Record<number, string> = {
+  0: '与会人员',
+  1: '主持人',
+  2: '会议秘书'
+}
+const readDetailVisible = ref(false)
+const readDetailLoading = ref(false)
+const readDetail = ref<NotificationApi.MeetingNotificationReadDetailVO>()
 
 const getList = async () => {
   loading.value = true
   try {
-    const data = await NotificationApi.getMeetingNotificationPage(queryParams)
+    const data = await NotificationApi.getMeetingNotificationStatsPage(queryParams)
     list.value = data.list
     total.value = data.total
   } finally {
@@ -170,6 +278,23 @@ const handleDelete = async (id: number) => {
     message.success('删除成功')
     await getList()
   } catch {}
+}
+
+const openReadDetail = async (row: NotificationApi.MeetingNotificationStatsVO) => {
+  readDetailVisible.value = true
+  readDetailLoading.value = true
+  readDetail.value = undefined
+  try {
+    readDetail.value = await NotificationApi.getMeetingNotificationReadDetail(row.id!)
+  } finally {
+    readDetailLoading.value = false
+  }
+}
+
+const deliveryTagType = (status?: string) => {
+  if (status === 'delivered') return 'success'
+  if (status === 'failed') return 'danger'
+  return 'warning'
 }
 
 onMounted(getList)

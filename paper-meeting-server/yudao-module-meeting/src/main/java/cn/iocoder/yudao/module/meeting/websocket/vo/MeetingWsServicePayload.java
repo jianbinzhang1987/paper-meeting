@@ -2,6 +2,8 @@ package cn.iocoder.yudao.module.meeting.websocket.vo;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 public class MeetingWsServicePayload {
 
@@ -15,4 +17,8 @@ public class MeetingWsServicePayload {
     private String status;
     private Long handlerUserId;
     private String handlerName;
+    private LocalDateTime acceptedAt;
+    private LocalDateTime completedAt;
+    private LocalDateTime canceledAt;
+    private String resultRemark;
 }

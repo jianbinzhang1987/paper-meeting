@@ -31,6 +31,9 @@ public class MeetingVoteRespVO {
     @Schema(description = "状态", example = "0")
     private Integer status;
 
+    @Schema(description = "结果发布时间")
+    private LocalDateTime publishedTime;
+
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
 

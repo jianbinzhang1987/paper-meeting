@@ -53,6 +53,19 @@ PREPARE stmt FROM @ddl;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @ddl = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE `meeting_vote` ADD COLUMN `published_time` datetime DEFAULT NULL COMMENT ''结果发布时间'' AFTER `status`',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'meeting_vote' AND column_name = 'published_time'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS `meeting_notification` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '通知编号',
   `meeting_id` bigint NOT NULL COMMENT '会议编号',
@@ -126,6 +139,91 @@ CREATE TABLE IF NOT EXISTS `meeting_app_version` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='安装包版本管理表';
 
+CREATE TABLE IF NOT EXISTS `meeting_branding` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '贴牌编号',
+  `site_name` varchar(100) NOT NULL COMMENT '网站名称',
+  `site_logo_url` varchar(512) DEFAULT NULL COMMENT '站点 Logo',
+  `sidebar_title` varchar(100) DEFAULT NULL COMMENT '侧边栏标题',
+  `sidebar_subtitle` varchar(200) DEFAULT NULL COMMENT '侧边栏副标题',
+  `active` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否启用',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议贴牌配置表';
+
+CREATE TABLE IF NOT EXISTS `meeting_user_group` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '用户组编号',
+  `name` varchar(100) NOT NULL COMMENT '组名',
+  `description` varchar(500) DEFAULT NULL COMMENT '描述',
+  `user_ids` varchar(4000) NOT NULL COMMENT '用户编号列表，逗号分隔',
+  `active` bit(1) NOT NULL DEFAULT b'1' COMMENT '是否启用',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议用户组表';
+
+CREATE TABLE IF NOT EXISTS `meeting_public_file_access_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '访问日志编号',
+  `file_id` bigint NOT NULL COMMENT '资料编号',
+  `file_name` varchar(255) DEFAULT NULL COMMENT '资料名称',
+  `meeting_id` bigint DEFAULT NULL COMMENT '会议编号',
+  `user_id` bigint DEFAULT NULL COMMENT '用户编号',
+  `access_type` varchar(32) NOT NULL COMMENT '访问类型(view/open/download)',
+  `source` varchar(64) DEFAULT NULL COMMENT '访问来源',
+  `operator_name` varchar(100) DEFAULT NULL COMMENT '操作人',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  PRIMARY KEY (`id`),
+  KEY `idx_meeting_public_file_access_log_file` (`file_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公共资料访问日志表';
+
+CREATE TABLE IF NOT EXISTS `meeting_terminal_status` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '终端状态编号',
+  `client_type` tinyint NOT NULL COMMENT '客户端类型',
+  `room_name` varchar(100) NOT NULL COMMENT '会议室名称',
+  `seat_name` varchar(100) NOT NULL COMMENT '座位名称',
+  `device_name` varchar(100) NOT NULL COMMENT '设备名称',
+  `meeting_id` bigint DEFAULT NULL COMMENT '会议编号',
+  `meeting_name` varchar(255) DEFAULT NULL COMMENT '会议名称',
+  `user_id` bigint DEFAULT NULL COMMENT '当前登录用户编号',
+  `user_name` varchar(100) DEFAULT NULL COMMENT '当前登录用户名',
+  `theme_mode` varchar(20) DEFAULT NULL COMMENT '主题模式',
+  `connection_status` varchar(32) DEFAULT NULL COMMENT '连接状态',
+  `app_version_id` bigint DEFAULT NULL COMMENT '安装包记录编号',
+  `app_version_name` varchar(100) DEFAULT NULL COMMENT '安装包名称',
+  `app_version_code` int DEFAULT NULL COMMENT '安装包版本号',
+  `ui_config_id` bigint DEFAULT NULL COMMENT '样式编号',
+  `ui_config_name` varchar(100) DEFAULT NULL COMMENT '样式名称',
+  `branding_id` bigint DEFAULT NULL COMMENT '贴牌编号',
+  `branding_name` varchar(100) DEFAULT NULL COMMENT '贴牌名称',
+  `last_bootstrap_time` datetime DEFAULT NULL COMMENT '最近启动时间',
+  `last_heartbeat_time` datetime DEFAULT NULL COMMENT '最近心跳时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  PRIMARY KEY (`id`),
+  KEY `idx_meeting_terminal_status_client` (`client_type`),
+  KEY `idx_meeting_terminal_status_heartbeat` (`last_heartbeat_time`),
+  KEY `idx_meeting_terminal_status_terminal` (`room_name`,`seat_name`,`device_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议终端状态表';
+
 CREATE TABLE IF NOT EXISTS `meeting_signature` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '签名编号',
   `meeting_id` bigint NOT NULL COMMENT '会议编号',
@@ -143,6 +241,68 @@ CREATE TABLE IF NOT EXISTS `meeting_signature` (
   PRIMARY KEY (`id`),
   KEY `idx_meeting_signature_meeting_user` (`meeting_id`,`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议签名记录表';
+
+CREATE TABLE IF NOT EXISTS `meeting_document_mark` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '标记编号',
+  `meeting_id` bigint NOT NULL COMMENT '会议编号',
+  `user_id` bigint NOT NULL COMMENT '用户编号',
+  `document_id` bigint NOT NULL COMMENT '文稿编号',
+  `page` int NOT NULL COMMENT '页码',
+  `type` varchar(32) NOT NULL COMMENT '标记类型(note/bookmark)',
+  `content` varchar(1000) NOT NULL COMMENT '标记内容',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  PRIMARY KEY (`id`),
+  KEY `idx_meeting_document_mark_lookup` (`meeting_id`,`user_id`,`document_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议文稿标记表';
+
+CREATE TABLE IF NOT EXISTS `meeting_service_request` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '请求编号',
+  `request_id` varchar(64) NOT NULL COMMENT '请求流水号',
+  `meeting_id` bigint NOT NULL COMMENT '会议编号',
+  `requester_user_id` bigint NOT NULL COMMENT '发起用户编号',
+  `requester_name` varchar(100) DEFAULT NULL COMMENT '发起人姓名',
+  `requester_seat_name` varchar(64) DEFAULT NULL COMMENT '发起人座位',
+  `category` varchar(100) NOT NULL COMMENT '服务类别',
+  `detail` varchar(1000) DEFAULT NULL COMMENT '服务描述',
+  `status` varchar(32) NOT NULL DEFAULT 'pending' COMMENT '处理状态',
+  `handler_user_id` bigint DEFAULT NULL COMMENT '处理人编号',
+  `handler_name` varchar(100) DEFAULT NULL COMMENT '处理人姓名',
+  `accepted_at` datetime DEFAULT NULL COMMENT '接单时间',
+  `completed_at` datetime DEFAULT NULL COMMENT '完成时间',
+  `canceled_at` datetime DEFAULT NULL COMMENT '取消时间',
+  `result_remark` varchar(1000) DEFAULT NULL COMMENT '处理结果备注',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_meeting_service_request_request` (`request_id`),
+  KEY `idx_meeting_service_request_lookup` (`meeting_id`,`requester_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议服务请求表';
+
+CREATE TABLE IF NOT EXISTS `meeting_notice_read` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '已读编号',
+  `meeting_id` bigint NOT NULL COMMENT '会议编号',
+  `user_id` bigint NOT NULL COMMENT '用户编号',
+  `notice_id` bigint NOT NULL COMMENT '通知编号',
+  `read_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '已读时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_meeting_notice_read` (`meeting_id`,`user_id`,`notice_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议通知已读表';
 
 SET @ddl = (
     SELECT IF(

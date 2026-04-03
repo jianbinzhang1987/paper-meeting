@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.meeting.service.uiconfig;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.meeting.controller.admin.uiconfig.vo.MeetingUiConfigCreateReqVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.uiconfig.vo.MeetingUiConfigPageReqVO;
@@ -57,6 +58,14 @@ public class MeetingUiConfigServiceImpl implements MeetingUiConfigService {
     @Override
     public PageResult<MeetingUiConfigDO> getPage(MeetingUiConfigPageReqVO pageReqVO) {
         return meetingUiConfigMapper.selectPage(pageReqVO);
+    }
+
+    @Override
+    public MeetingUiConfigDO getActive() {
+        return meetingUiConfigMapper.selectOne(new LambdaQueryWrapperX<MeetingUiConfigDO>()
+                .eq(MeetingUiConfigDO::getActive, true)
+                .orderByDesc(MeetingUiConfigDO::getId)
+                .last("limit 1"));
     }
 
     @Override

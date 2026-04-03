@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.meeting.controller.admin.meeting;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingVoteCreateReqVO;
+import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingVoteDashboardRespVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingVoteRespVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingVoteResultExportVO;
 import cn.iocoder.yudao.module.meeting.dal.dataobject.meeting.MeetingVoteDO;
@@ -21,6 +22,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
@@ -60,10 +62,18 @@ public class MeetingVoteController {
         return success(meetingVoteService.getVoteListByMeetingId(meetingId));
     }
 
+    @GetMapping("/dashboard")
+    @Operation(summary = "获得表决控制中心数据")
+    @Parameter(name = "meetingId", description = "会议编号", required = true)
+    @PreAuthorize("@ss.hasPermission('meeting:vote:query')")
+    public CommonResult<MeetingVoteDashboardRespVO> getVoteDashboard(@RequestParam("meetingId") Long meetingId) {
+        return success(meetingVoteService.getVoteDashboardByMeetingId(meetingId));
+    }
+
     @GetMapping("/export-excel")
     @Operation(summary = "导出表决结果")
     @Parameter(name = "meetingId", description = "会议编号", required = true)
-    @PreAuthorize("@ss.hasPermission('meeting:vote:query')")
+    @PreAuthorize("@ss.hasPermission('meeting:vote:export')")
     public void exportVoteExcel(@RequestParam("meetingId") Long meetingId,
                                 HttpServletResponse response) throws IOException {
         List<MeetingVoteResultExportVO> data = meetingVoteService.getVoteResultExportList(meetingId);
@@ -93,14 +103,19 @@ public class MeetingVoteController {
 
     @PostMapping("/publish")
     @Operation(summary = "发布表决结果")
-    @PreAuthorize("@ss.hasPermission('meeting:vote:update')")
+    @PreAuthorize("@ss.hasPermission('meeting:vote:publish')")
     public CommonResult<Boolean> publishVote(@RequestParam("id") Long id) {
-        return updateVoteStatus(id, 2, MeetingWebSocketMessageType.VOTE_PUBLISHED);
+        meetingVoteService.markVotePublished(id, LocalDateTime.now());
+        MeetingVoteDO vote = meetingVoteService.getVote(id);
+        if (vote != null) {
+            meetingWebSocketSender.sendVoteStatus(vote, MeetingWebSocketMessageType.VOTE_PUBLISHED);
+        }
+        return success(true);
     }
 
     @PostMapping("/force-return")
     @Operation(summary = "强制返回同屏")
-    @PreAuthorize("@ss.hasPermission('meeting:vote:update')")
+    @PreAuthorize("@ss.hasPermission('meeting:vote:force-return')")
     public CommonResult<Boolean> forceReturn(@RequestParam("meetingId") Long meetingId) {
         meetingWebSocketSender.sendForceReturn(meetingId);
         return success(true);

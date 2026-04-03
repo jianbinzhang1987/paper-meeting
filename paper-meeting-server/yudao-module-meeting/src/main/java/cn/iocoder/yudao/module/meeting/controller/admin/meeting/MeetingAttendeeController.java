@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.meeting.controller.admin.meeting;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingAttendeeExportVO;
+import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingAttendeeImportGroupReqVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingAttendeeBaseVO;
 import cn.iocoder.yudao.module.meeting.controller.admin.meeting.vo.MeetingSeatAssignReqVO;
 import cn.iocoder.yudao.module.meeting.dal.dataobject.meeting.MeetingAttendeeDO;
@@ -42,6 +43,14 @@ public class MeetingAttendeeController {
     @PreAuthorize("@ss.hasPermission('meeting:attendee:create')")
     public CommonResult<Boolean> createAttendee(@Valid @RequestBody MeetingAttendeeBaseVO createReqVO) {
         meetingAttendeeService.createAttendee(createReqVO);
+        return success(true);
+    }
+
+    @PostMapping("/import-groups")
+    @Operation(summary = "按用户组批量导入参会人")
+    @PreAuthorize("@ss.hasPermission('meeting:attendee:create')")
+    public CommonResult<Boolean> importGroups(@Valid @RequestBody MeetingAttendeeImportGroupReqVO reqVO) {
+        meetingAttendeeService.importByGroups(reqVO);
         return success(true);
     }
 

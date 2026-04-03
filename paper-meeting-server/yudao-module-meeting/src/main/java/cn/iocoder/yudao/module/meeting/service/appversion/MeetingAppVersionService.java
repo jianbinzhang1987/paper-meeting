@@ -18,5 +18,7 @@ public interface MeetingAppVersionService {
 
     PageResult<MeetingAppVersionDO> getPage(MeetingAppVersionPageReqVO pageReqVO);
 
+    MeetingAppVersionDO getActive(Integer clientType);
+
     void activate(Long id);
 }
